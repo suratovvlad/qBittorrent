@@ -96,3 +96,6 @@ RESOURCES += \
     searchengine/searchengine.qrc
 
 DESTDIR = .
+
+RESOURCES += \
+    style.qrc
