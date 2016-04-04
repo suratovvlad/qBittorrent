@@ -36,6 +36,7 @@ endif()
 set(QBT_APP_RESOURCES
 ../icons/icons.qrc
 ../searchengine/searchengine.qrc
+../style.qrc
 )
 
 # With AUTORCC rcc is ran by cmake before language files are generated,
