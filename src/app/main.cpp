@@ -104,6 +104,28 @@ void displayBadArgMessage(const QString &message);
 void showSplashScreen();
 #endif  // DISABLE_GUI
 
+namespace {
+    bool setDarkTheme(const QScopedPointer<Application>& app)
+    {
+        // Set dark theme
+        QFile file = {":/qdarkstyle/style.qss"};
+
+        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
+            return false;
+        }
+
+        app->setStyleSheet(file.readAll());
+        file.close();
+
+        auto palette = app->palette();
+        palette.setColor(QPalette::Active, QPalette::Base, QColor{ 100, 100, 100 });
+        palette.setColor(QPalette::Link, QColor{ "#00bfff" });
+        app->setPalette(palette);
+
+        return true;
+    }
+}
+
 // Main
 int main(int argc, char *argv[])
 {
@@ -158,8 +180,12 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Couldn't set environment variable...\n");
 
 #ifndef DISABLE_GUI
-        if (!userAgreesWithLegalNotice())
-            return EXIT_SUCCESS;
+
+    if (!setDarkTheme(app))
+        qDebug() << "Can't start dark theme";
+
+    if (!userAgreesWithLegalNotice())
+        return EXIT_SUCCESS;
 #else
         if (!params.shouldDaemonize
             && isatty(fileno(stdin))
