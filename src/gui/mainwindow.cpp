@@ -1509,6 +1509,10 @@ void MainWindow::showStatusBar(bool show)
     {
         // Create status bar
         m_statusBar = new StatusBar;
+
+        // For dark theme
+        this->setStyleSheet("QStatusBar::item { border-width: 0; }");
+
         connect(m_statusBar.data(), &StatusBar::connectionButtonClicked, this, &MainWindow::showConnectionSettings);
         connect(m_statusBar.data(), &StatusBar::alternativeSpeedsButtonClicked, this, &MainWindow::toggleAlternativeSpeeds);
         setStatusBar(m_statusBar);
