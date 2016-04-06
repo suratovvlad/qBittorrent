@@ -113,7 +113,7 @@ struct QBtCommandLineParameters
 #endif
 #ifndef DISABLE_GUI
         , noSplash(Preferences::instance()->isSplashScreenDisabled())
-        , darkTheme(false)
+        , darkTheme(true)
 #else
         , shouldDaemonize(false)
 #endif
@@ -192,13 +192,14 @@ int main(int argc, char *argv[])
 
     // Set dark theme
     if (params.darkTheme) {
-        QFile file(":/qdarkstylesheet.qss");
+        QFile file(":qdarkstyle/style.qss");
         if(file.open(QIODevice::ReadOnly | QIODevice::Text)) {
             app->setStyleSheet(file.readAll());
             file.close();
         }
         QPalette palette = app->palette();
         palette.setColor(QPalette::Active, QPalette::Base, QColor(100,100,100));
+        palette.setColor(QPalette::Link, QColor("#00bfff"));
         app->setPalette(palette);
     }
 
@@ -312,7 +313,7 @@ QBtCommandLineParameters parseCommandLine()
             else if (arg == QLatin1String("--no-splash")) {
                 result.noSplash = true;
             }
-            else if (arg == QLatin1String("--dark-theme")) {
+            else if (arg == QLatin1String("--no-dark-theme")) {
                 result.darkTheme = true;
             }
 #else
