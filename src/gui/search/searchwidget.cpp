@@ -61,7 +61,6 @@
 #include "mainwindow.h"
 #include "addnewtorrentdialog.h"
 #include "guiiconprovider.h"
-#include "lineedit.h"
 #include "pluginselectdlg.h"
 #include "searchsortmodel.h"
 #include "searchtab.h"
@@ -78,13 +77,8 @@ SearchWidget::SearchWidget(MainWindow *mainWindow)
 {
     setupUi(this);
 
-    m_searchPattern = new LineEdit(this);
-    searchBarLayout->insertWidget(0, m_searchPattern);
-    connect(m_searchPattern, SIGNAL(returnPressed()), searchButton, SLOT(click()));
-
     QString searchPatternHint;
     QTextStream stream(&searchPatternHint, QIODevice::WriteOnly);
-
     stream << "<html><head/><body><p>"
            << tr("A phrase to search for.") << "<br>"
            << tr("Spaces in a search term may be protected by double quotes.")
@@ -99,7 +93,6 @@ SearchWidget::SearchWidget(MainWindow *mainWindow)
                  "Search phrase example, illustrates quotes usage, double quoted"
                  "pair of space delimited words, the whole pair is highlighted")
            << "</p></body></html>" << flush;
-
     m_searchPattern->setToolTip(searchPatternHint);
 
     // Icons
@@ -108,7 +101,6 @@ SearchWidget::SearchWidget(MainWindow *mainWindow)
     goToDescBtn->setIcon(GuiIconProvider::instance()->getIcon("application-x-mswinurl"));
     pluginsButton->setIcon(GuiIconProvider::instance()->getIcon("preferences-system-network"));
     copyURLBtn->setIcon(GuiIconProvider::instance()->getIcon("edit-copy"));
-    tabWidget->setTabsClosable(true);
     connect(tabWidget, SIGNAL(tabCloseRequested(int)), this, SLOT(closeTab(int)));
 
     m_searchEngine = new SearchEngine;
@@ -116,33 +108,51 @@ SearchWidget::SearchWidget(MainWindow *mainWindow)
     connect(m_searchEngine, SIGNAL(newSearchResults(QList<SearchResult>)), SLOT(appendSearchResults(QList<SearchResult>)));
     connect(m_searchEngine, SIGNAL(searchFinished(bool)), SLOT(searchFinished(bool)));
     connect(m_searchEngine, SIGNAL(searchFailed()), SLOT(searchFailed()));
+    connect(m_searchEngine, SIGNAL(torrentFileDownloaded(QString)), SLOT(addTorrentToSession(QString)));
 
     // Fill in category combobox
     fillCatCombobox();
     fillPluginComboBox();
 
+    connect(m_searchPattern, SIGNAL(returnPressed()), searchButton, SLOT(click()));
     connect(m_searchPattern, SIGNAL(textEdited(QString)), this, SLOT(searchTextEdited(QString)));
-    connect(selectPlugin, SIGNAL(currentIndexChanged(const QString &)), this, SLOT(selectMultipleBox(const QString &)));
+    connect(selectPlugin, SIGNAL(currentIndexChanged(int)), this, SLOT(selectMultipleBox(int)));
 }
 
 void SearchWidget::fillCatCombobox()
 {
     comboCategory->clear();
     comboCategory->addItem(SearchEngine::categoryFullName("all"), QVariant("all"));
-    foreach (QString cat, m_searchEngine->supportedCategories()) {
-        qDebug("Supported category: %s", qPrintable(cat));
-        comboCategory->addItem(SearchEngine::categoryFullName(cat), QVariant(cat));
+    comboCategory->insertSeparator(1);
+
+    using QStrPair = QPair<QString, QString>;
+    QList<QStrPair> tmpList;
+    foreach (const QString &cat, m_searchEngine->supportedCategories())
+        tmpList << qMakePair(SearchEngine::categoryFullName(cat), cat);
+    std::sort(tmpList.begin(), tmpList.end(), [](const QStrPair &l, const QStrPair &r) { return (l.first < r.first); } );
+
+    foreach (const QStrPair &p, tmpList) {
+        qDebug("Supported category: %s", qPrintable(p.second));
+        comboCategory->addItem(p.first, QVariant(p.second));
     }
 }
 
 void SearchWidget::fillPluginComboBox()
 {
     selectPlugin->clear();
-    selectPlugin->addItem(tr("All enabled"), QVariant("enabled"));
     selectPlugin->addItem(tr("All plugins"), QVariant("all"));
-    foreach (QString name, m_searchEngine->enabledPlugins())
-        selectPlugin->addItem(name, QVariant(name));
-    selectPlugin->addItem(tr("Multiple..."), QVariant("multi"));
+    selectPlugin->addItem(tr("Only enabled"), QVariant("enabled"));
+    selectPlugin->addItem(tr("Select..."), QVariant("multi"));
+    selectPlugin->insertSeparator(3);
+
+    using QStrPair = QPair<QString, QString>;
+    QList<QStrPair> tmpList;
+    foreach (const QString &name, m_searchEngine->enabledPlugins())
+        tmpList << qMakePair(m_searchEngine->pluginFullName(name), name);
+    std::sort(tmpList.begin(), tmpList.end(), [](const QStrPair &l, const QStrPair &r) { return (l.first < r.first); } );
+
+    foreach (const QStrPair &p, tmpList)
+        selectPlugin->addItem(p.first, QVariant(p.second));
 }
 
 QString SearchWidget::selectedCategory() const
@@ -159,6 +169,14 @@ SearchWidget::~SearchWidget()
 {
     qDebug("Search destruction");
     delete m_searchEngine;
+}
+
+void SearchWidget::downloadTorrent(const QString &siteUrl, const QString &url)
+{
+    if (url.startsWith("bc://bt/", Qt::CaseInsensitive) || url.startsWith("magnet:", Qt::CaseInsensitive))
+        addTorrentToSession(url);
+    else
+        m_searchEngine->downloadTorrent(siteUrl, url);
 }
 
 void SearchWidget::tab_changed(int t)
@@ -181,10 +199,19 @@ void SearchWidget::tab_changed(int t)
     }
 }
 
-void SearchWidget::selectMultipleBox(const QString &text)
+void SearchWidget::selectMultipleBox(int index)
 {
-    if (text == tr("Multiple..."))
+    Q_UNUSED(index);
+    if (selectedPlugin() == "multi")
         on_pluginsButton_clicked();
+}
+
+void SearchWidget::addTorrentToSession(const QString &source)
+{
+    if (AddNewTorrentDialog::isEnabled())
+        AddNewTorrentDialog::show(source, this);
+    else
+        BitTorrent::Session::instance()->addTorrent(source);
 }
 
 void SearchWidget::on_pluginsButton_clicked()
@@ -281,14 +308,6 @@ void SearchWidget::saveResultsColumnsWidth()
     Preferences::instance()->setSearchColsWidth(newWidthList.join(" "));
 }
 
-void SearchWidget::downloadTorrent(QString url)
-{
-    if (AddNewTorrentDialog::isEnabled())
-        AddNewTorrentDialog::show(url, this);
-    else
-        BitTorrent::Session::instance()->addTorrent(url);
-}
-
 void SearchWidget::searchStarted()
 {
     // Update SearchEngine widgets
@@ -301,7 +320,7 @@ void SearchWidget::searchStarted()
 // Error | Stopped by user | Finished normally
 void SearchWidget::searchFinished(bool cancelled)
 {
-    if (Preferences::instance()->useProgramNotification() && (m_mainWindow->getCurrentTabWidget() != this))
+    if (m_mainWindow->isNotificationsEnabled() && (m_mainWindow->currentTabWidget() != this))
         m_mainWindow->showNotificationBaloon(tr("Search Engine"), tr("Search has finished"));
 
     if (m_activeSearchTab.isNull()) return; // The active tab was closed
@@ -319,7 +338,7 @@ void SearchWidget::searchFinished(bool cancelled)
 
 void SearchWidget::searchFailed()
 {
-    if (Preferences::instance()->useProgramNotification() && (m_mainWindow->getCurrentTabWidget() != this))
+    if (m_mainWindow->isNotificationsEnabled() && (m_mainWindow->currentTabWidget() != this))
         m_mainWindow->showNotificationBaloon(tr("Search Engine"), tr("Search has failed"));
 
     if (m_activeSearchTab.isNull()) return; // The active tab was closed
@@ -391,13 +410,8 @@ void SearchWidget::on_downloadButton_clicked()
     //QModelIndexList selectedIndexes = currentSearchTab->getCurrentTreeView()->selectionModel()->selectedIndexes();
     QModelIndexList selectedIndexes = m_allTabs.at(tabWidget->currentIndex())->getCurrentTreeView()->selectionModel()->selectedIndexes();
     foreach (const QModelIndex &index, selectedIndexes) {
-        if (index.column() == SearchSortModel::NAME) {
-            // Get Item url
-            QSortFilterProxyModel *model = m_allTabs.at(tabWidget->currentIndex())->getCurrentSearchListProxy();
-            QString torrentUrl = model->data(model->index(index.row(), URL_COLUMN)).toString();
-            downloadTorrent(torrentUrl);
-            m_allTabs.at(tabWidget->currentIndex())->setRowColor(index.row(), "blue");
-        }
+        if (index.column() == SearchSortModel::NAME)
+            m_allTabs.at(tabWidget->currentIndex())->downloadItem(index);
     }
 }
 

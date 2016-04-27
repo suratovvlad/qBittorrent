@@ -67,8 +67,9 @@ namespace Utils
         QString parseHtmlLinks(const QString &raw_text);
         bool isUrl(const QString &s);
 
+        void shutdownComputer(const ShutdownDialogAction &action);
+
 #ifndef DISABLE_GUI
-        void shutdownComputer(ShutdownAction action);
         // Get screen center
         QPoint screenCenter(QWidget *win);
         QSize smallIconSize();

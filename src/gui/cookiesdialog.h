@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2011  Christophe Dumez
+ * Copyright (C) 2016  Vladimir Golovnev <glassez@yandex.ru>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -24,52 +24,38 @@
  * modify file(s), you may extend this exception to your version of the file(s),
  * but you are not obligated to do so. If you do not wish to do so, delete this
  * exception statement from your version.
- *
- * Contact : chris@qbittorrent.org
  */
 
-#ifndef SHUTDOWNCONFIRM_H
-#define SHUTDOWNCONFIRM_H
+#ifndef COOKIESDIALOG_H
+#define COOKIESDIALOG_H
 
 #include <QDialog>
-#include <QTimer>
-#include "base/utils/misc.h"
-
-class QLabel;
-class QCheckBox;
 
 namespace Ui
 {
-    class confirmShutdownDlg;
+    class CookiesDialog;
 }
 
-class ShutdownConfirmDlg : public QDialog
+class CookiesModel;
+
+class CookiesDialog : public QDialog
 {
     Q_OBJECT
 
 public:
-    ShutdownConfirmDlg(const ShutdownAction &action);
-    ~ShutdownConfirmDlg();
-    bool shutdown() const;
+    explicit CookiesDialog(QWidget *parent = 0);
+    ~CookiesDialog();
 
-    static bool askForConfirmation(const ShutdownAction &action);
-
-protected:
-    void showEvent(QShowEvent *event);
-
-private slots:
-    void updateSeconds();
+public slots:
     void accept() override;
 
-private:
-    // Methods
-    void updateText();
+private slots:
+    void onButtonAddClicked();
+    void onButtonDeleteClicked();
 
-    // Vars
-    Ui::confirmShutdownDlg *ui;
-    QTimer m_timer;
-    int m_timeout;
-    ShutdownAction m_action;
+private:
+    Ui::CookiesDialog *m_ui;
+    CookiesModel *m_cookiesModel;
 };
 
-#endif // SHUTDOWNCONFIRM_H
+#endif // COOKIESDIALOG_H

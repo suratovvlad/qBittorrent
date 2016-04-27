@@ -185,6 +185,7 @@ namespace BitTorrent
         void setTempPath(QString path);
         bool isTempPathEnabled() const;
         void setTempPathEnabled(bool enabled);
+        QString torrentTempPath(const InfoHash &hash) const;
 
         static bool isValidCategoryName(const QString &name);
         // returns category itself and all top level categories
@@ -356,8 +357,9 @@ namespace BitTorrent
 
         void startUpTorrents();
         bool addTorrent_impl(AddTorrentData addData, const MagnetUri &magnetUri,
-                             const TorrentInfo &torrentInfo = TorrentInfo(),
+                             TorrentInfo torrentInfo = TorrentInfo(),
                              const QByteArray &fastresumeData = QByteArray());
+        bool findIncompleteFiles(TorrentInfo &torrentInfo, QString &savePath) const;
 
         void updateRatioTimer();
         void exportTorrentFile(TorrentHandle *const torrent, TorrentExportFolder folder = TorrentExportFolder::Regular);

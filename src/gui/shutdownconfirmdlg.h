@@ -1,6 +1,6 @@
 /*
- * Bittorrent Client using Qt4 and libtorrent.
- * Copyright (C) 2010  Christophe Dumez
+ * Bittorrent Client using Qt and libtorrent.
+ * Copyright (C) 2011  Christophe Dumez
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -28,59 +28,46 @@
  * Contact : chris@qbittorrent.org
  */
 
-#ifndef TORRENTIMPORTDLG_H
-#define TORRENTIMPORTDLG_H
+#ifndef SHUTDOWNCONFIRMDLG_H
+#define SHUTDOWNCONFIRMDLG_H
 
 #include <QDialog>
-#include <QStringList>
-
-#include "base/bittorrent/torrentinfo.h"
+#include <QTimer>
+#include "base/types.h"
 
 namespace Ui
 {
-    class TorrentImportDlg;
+    class confirmShutdownDlg;
 }
 
-class TorrentImportDlg: public QDialog
+class ShutdownConfirmDlg: public QDialog
 {
     Q_OBJECT
 
 public:
-    explicit TorrentImportDlg(QWidget *parent = 0);
-    ~TorrentImportDlg();
+    ShutdownConfirmDlg(const ShutdownDialogAction &action);
+    ~ShutdownConfirmDlg();
 
-    static void importTorrent();
-
-    QString getTorrentPath() const;
-    QString getContentPath() const;
-    bool fileRenamed() const;
-    BitTorrent::TorrentInfo torrent() const;
-    bool skipFileChecking() const;
-
-protected slots:
-    void loadTorrent(const QString &torrentPath);
-    void initializeFilesPath();
-
-private slots:
-    void on_browseTorrentBtn_clicked();
-    void on_browseContentBtn_clicked();
-    void on_importBtn_clicked();
+    static bool askForConfirmation(const ShutdownDialogAction &action);
 
 protected:
-    void closeEvent(QCloseEvent *event);
+    void showEvent(QShowEvent *event) override;
+
+private slots:
+    void updateSeconds();
+    void accept() override;
 
 private:
-    void loadSettings();
-    void saveSettings();
+    // Methods
+    void initText();
+    void updateText();
 
-private:
-    Ui::TorrentImportDlg *ui;
-    BitTorrent::TorrentInfo m_torrentInfo;
-    // NOTE: Where do we use it?
-    QStringList m_filesPath;
-    QString m_contentPath;
-    QString m_torrentPath;
-    bool m_fileRenamed;
+    // Vars
+    Ui::confirmShutdownDlg *ui;
+    QTimer m_timer;
+    int m_timeout;
+    ShutdownDialogAction m_action;
+    QString m_msg;
 };
 
-#endif // TORRENTIMPORTDLG_H
+#endif // SHUTDOWNCONFIRM_H

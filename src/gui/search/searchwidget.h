@@ -38,7 +38,6 @@
 #include "ui_searchwidget.h"
 
 class MainWindow;
-class LineEdit;
 class SearchEngine;
 struct SearchResult;
 class SearchTab;
@@ -52,7 +51,7 @@ public:
     explicit SearchWidget(MainWindow *mainWindow);
     ~SearchWidget();
 
-    void downloadTorrent(QString url);
+    void downloadTorrent(const QString &siteUrl, const QString &url);
     void giveFocusToSearchInput();
 
     QTabWidget* searchTabs() const;
@@ -71,7 +70,9 @@ private slots:
     void searchStarted();
     void searchFinished(bool cancelled);
     void searchFailed();
-    void selectMultipleBox(const QString &text);
+    void selectMultipleBox(int index);
+
+    void addTorrentToSession(const QString &source);
 
     void saveResultsColumnsWidth();
     void fillCatCombobox();
@@ -82,11 +83,10 @@ private:
     QString selectedCategory() const;
     QString selectedPlugin() const;
 
-    LineEdit *m_searchPattern;
     SearchEngine *m_searchEngine;
     QPointer<SearchTab> m_currentSearchTab; // Selected tab
     QPointer<SearchTab> m_activeSearchTab; // Tab with running search
-    QList<QPointer<SearchTab> > m_allTabs; // To store all tabs
+    QList<QPointer<SearchTab>> m_allTabs; // To store all tabs
     MainWindow *m_mainWindow;
     bool m_isNewQueryString;
     bool m_noSearchResults;

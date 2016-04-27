@@ -98,7 +98,7 @@ SearchTab::SearchTab(SearchWidget *parent)
     m_ui->resultsBrowser->setSortingEnabled(true);
 
     // Connect signals to slots (search part)
-    connect(m_ui->resultsBrowser, SIGNAL(doubleClicked(const QModelIndex&)), this, SLOT(downloadSelectedItem(const QModelIndex&)));
+    connect(m_ui->resultsBrowser, SIGNAL(doubleClicked(const QModelIndex&)), this, SLOT(downloadItem(const QModelIndex&)));
 
     // Load last columns width for search results list
     if (!loadColWidthResultsList())
@@ -129,11 +129,12 @@ SearchTab::~SearchTab()
     delete m_ui;
 }
 
-void SearchTab::downloadSelectedItem(const QModelIndex &index)
+void SearchTab::downloadItem(const QModelIndex &index)
 {
     QString torrentUrl = m_proxyModel->data(m_proxyModel->index(index.row(), SearchSortModel::DL_LINK)).toString();
+    QString siteUrl = m_proxyModel->data(m_proxyModel->index(index.row(), SearchSortModel::ENGINE_URL)).toString();
     setRowColor(index.row(), "blue");
-    m_parent->downloadTorrent(torrentUrl);
+    m_parent->downloadTorrent(siteUrl, torrentUrl);
 }
 
 QHeaderView* SearchTab::header() const
