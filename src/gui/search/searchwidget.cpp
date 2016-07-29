@@ -129,7 +129,7 @@ void SearchWidget::fillCatCombobox()
     QList<QStrPair> tmpList;
     foreach (const QString &cat, m_searchEngine->supportedCategories())
         tmpList << qMakePair(SearchEngine::categoryFullName(cat), cat);
-    std::sort(tmpList.begin(), tmpList.end(), [](const QStrPair &l, const QStrPair &r) { return (l.first < r.first); } );
+    std::sort(tmpList.begin(), tmpList.end(), [](const QStrPair &l, const QStrPair &r) { return (QString::localeAwareCompare(l.first, r.first) < 0); });
 
     foreach (const QStrPair &p, tmpList) {
         qDebug("Supported category: %s", qPrintable(p.second));
@@ -140,8 +140,8 @@ void SearchWidget::fillCatCombobox()
 void SearchWidget::fillPluginComboBox()
 {
     selectPlugin->clear();
-    selectPlugin->addItem(tr("All plugins"), QVariant("all"));
     selectPlugin->addItem(tr("Only enabled"), QVariant("enabled"));
+    selectPlugin->addItem(tr("All plugins"), QVariant("all"));
     selectPlugin->addItem(tr("Select..."), QVariant("multi"));
     selectPlugin->insertSeparator(3);
 

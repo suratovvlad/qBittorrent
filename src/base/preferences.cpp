@@ -1344,6 +1344,16 @@ void Preferences::setNetworkInterfaceName(const QString& iface)
     setValue("Preferences/Connection/InterfaceName", iface);
 }
 
+void Preferences::setNetworkInterfaceAddress(const QString& addr)
+{
+    setValue("Preferences/Connection/InterfaceAddress", addr);
+}
+
+QString Preferences::getNetworkInterfaceAddress() const
+{
+    return value("Preferences/Connection/InterfaceAddress").toString();
+}
+
 bool Preferences::getListenIPv6() const
 {
     return value("Preferences/Connection/InterfaceListenIPv6", false).toBool();
@@ -2184,7 +2194,7 @@ void Preferences::setRSSEnabled(const bool enabled)
 
 uint Preferences::getRSSRefreshInterval() const
 {
-    return value("Preferences/RSS/RSSRefresh", 5).toUInt();
+    return value("Preferences/RSS/RSSRefresh", 30).toUInt();
 }
 
 void Preferences::setRSSRefreshInterval(const uint &interval)

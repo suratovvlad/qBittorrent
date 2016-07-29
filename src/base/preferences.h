@@ -363,6 +363,8 @@ public:
     void setNetworkInterface(const QString& iface);
     QString getNetworkInterfaceName() const;
     void setNetworkInterfaceName(const QString& iface);
+    QString getNetworkInterfaceAddress() const;
+    void setNetworkInterfaceAddress(const QString& addr);
     bool getListenIPv6() const;
     void setListenIPv6(bool enable);
     QString getNetworkAddress() const;

@@ -33,6 +33,7 @@
 #include <QLibraryInfo>
 #include <QSysInfo>
 #include <QProcess>
+#include <QAtomicInt>
 
 #ifndef DISABLE_GUI
 #include "gui/guiiconprovider.h"
@@ -241,6 +242,55 @@ void Application::processMessage(const QString &message)
         m_paramsQueue.append(params);
 }
 
+void Application::runExternalProgram(BitTorrent::TorrentHandle *const torrent) const
+{
+    QString program = Preferences::instance()->getAutoRunProgram();
+    program.replace("%N", torrent->name());
+    program.replace("%L", torrent->category());
+    program.replace("%F", Utils::Fs::toNativePath(torrent->contentPath()));
+    program.replace("%R", Utils::Fs::toNativePath(torrent->rootPath()));
+    program.replace("%D", Utils::Fs::toNativePath(torrent->savePath()));
+    program.replace("%C", QString::number(torrent->filesCount()));
+    program.replace("%Z", QString::number(torrent->totalSize()));
+    program.replace("%T", torrent->currentTracker());
+    program.replace("%I", torrent->hash());
+
+    Logger *logger = Logger::instance();
+    logger->addMessage(tr("Torrent: %1, running external program, command: %2").arg(torrent->name()).arg(program));
+
+#if defined(Q_OS_UNIX)
+    QProcess::startDetached(QLatin1String("/bin/sh"), {QLatin1String("-c"), program});
+#elif defined(Q_OS_WIN)  // test cmd: `echo "%F" > "c:\ab ba.txt"`
+    static const QString cmdPath = []() -> QString {
+        WCHAR systemPath[64] = {0};
+        GetSystemDirectoryW(systemPath, sizeof(systemPath) / sizeof(WCHAR));
+        return QString::fromWCharArray(systemPath) + QLatin1String("\\cmd.exe /C ");
+    }();
+    program.prepend(QLatin1String("\"")).append(QLatin1String("\""));
+    program.prepend(cmdPath);
+    const uint cmdMaxLength = 32768;  // max length (incl. terminate char) for `lpCommandLine` in `CreateProcessW()`
+    if ((program.size() + 1) > cmdMaxLength) {
+        logger->addMessage(tr("Torrent: %1, run external program command too long (length > %2), execution failed.").arg(torrent->name()).arg(cmdMaxLength), Log::CRITICAL);
+        return;
+    }
+
+    STARTUPINFOW si = {0};
+    si.cb = sizeof(si);
+    PROCESS_INFORMATION pi = {0};
+
+    WCHAR *arg = new WCHAR[program.size() + 1];
+    program.toWCharArray(arg);
+    arg[program.size()] = L'\0';
+    if (CreateProcessW(NULL, arg, NULL, NULL, FALSE, CREATE_NO_WINDOW, NULL, NULL, &si, &pi)) {
+        CloseHandle(pi.hProcess);
+        CloseHandle(pi.hThread);
+    }
+    delete[] arg;
+#else
+    QProcess::startDetached(program);
+#endif
+}
+
 void Application::sendNotificationEmail(BitTorrent::TorrentHandle *const torrent)
 {
     // Prepare mail content
@@ -265,25 +315,14 @@ void Application::torrentFinished(BitTorrent::TorrentHandle *const torrent)
     Preferences *const pref = Preferences::instance();
 
     // AutoRun program
-    if (pref->isAutoRunEnabled()) {
-        QString program = pref->getAutoRunProgram();
-
-        program.replace("%N", torrent->name());
-        program.replace("%L", torrent->category());
-        program.replace("%F", Utils::Fs::toNativePath(torrent->contentPath()));
-        program.replace("%R", Utils::Fs::toNativePath(torrent->rootPath()));
-        program.replace("%D", Utils::Fs::toNativePath(torrent->savePath()));
-        program.replace("%C", QString::number(torrent->filesCount()));
-        program.replace("%Z", QString::number(torrent->totalSize()));
-        program.replace("%T", torrent->currentTracker());
-        program.replace("%I", torrent->hash());
-
-        QProcess::startDetached(program);
-    }
+    if (pref->isAutoRunEnabled())
+        runExternalProgram(torrent);
 
     // Mail notification
-    if (pref->isMailNotificationEnabled())
+    if (pref->isMailNotificationEnabled()) {
+        Logger::instance()->addMessage(tr("Torrent: %1, sending mail notification").arg(torrent->name()));
         sendNotificationEmail(torrent);
+    }
 }
 
 void Application::allTorrentsFinished()
@@ -547,11 +586,9 @@ void Application::cleanup()
 #ifndef DISABLE_GUI
 #ifdef Q_OS_WIN
     // cleanup() can be called multiple times during shutdown. We only need it once.
-    static bool alreadyDone = false;
-
-    if (alreadyDone)
+    static QAtomicInt alreadyDone;
+    if (!alreadyDone.testAndSetAcquire(0, 1))
         return;
-    alreadyDone = true;
 #endif // Q_OS_WIN
 
     // Hide the window and not leave it on screen as

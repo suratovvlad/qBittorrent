@@ -6,6 +6,7 @@ HEADERS += \
     $$PWD/logger.h \
     $$PWD/settingsstorage.h \
     $$PWD/preferences.h \
+    $$PWD/indexrange.h \
     $$PWD/iconprovider.h \
     $$PWD/http/irequesthandler.h \
     $$PWD/http/connection.h \
@@ -51,6 +52,7 @@ HEADERS += \
     $$PWD/utils/misc.h \
     $$PWD/utils/string.h \
     $$PWD/unicodestrings.h \
+    $$PWD/torrentfileguard.h \
     $$PWD/torrentfilter.h \
     $$PWD/scanfoldersmodel.h \
     $$PWD/searchengine.h
@@ -103,6 +105,7 @@ SOURCES += \
     $$PWD/utils/gzip.cpp \
     $$PWD/utils/misc.cpp \
     $$PWD/utils/string.cpp \
+    $$PWD/torrentfileguard.cpp \
     $$PWD/torrentfilter.cpp \
     $$PWD/scanfoldersmodel.cpp \
     $$PWD/searchengine.cpp

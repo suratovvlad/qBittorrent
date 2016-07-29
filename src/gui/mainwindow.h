@@ -46,7 +46,7 @@ class downloadFromURL;
 class SearchWidget;
 class RSSImp;
 class about;
-class options_imp;
+class OptionsDialog;
 class TransferListWidget;
 class TransferListFiltersWidget;
 class PropertiesWidget;
@@ -126,7 +126,7 @@ private slots:
     void loadPreferences(bool configureSession = true);
     void addUnauthenticatedTracker(const QPair<BitTorrent::TorrentHandle*, QString> &tracker);
     void addTorrentFailed(const QString &error) const;
-    void torrentAdded(BitTorrent::TorrentHandle *const torrent) const;
+    void torrentNew(BitTorrent::TorrentHandle *const torrent) const;
     void finishedTorrent(BitTorrent::TorrentHandle *const torrent) const;
     void askRecursiveTorrentDownloadConfirmation(BitTorrent::TorrentHandle *const torrent);
     void optionsSaved();
@@ -208,7 +208,7 @@ private:
     bool m_posInitialized;
     QTabWidget *m_tabs;
     StatusBar *m_statusBar;
-    QPointer<options_imp> m_options;
+    QPointer<OptionsDialog> m_options;
     QPointer<about> m_aboutDlg;
     QPointer<StatsDialog> m_statsDlg;
     QPointer<TorrentCreatorDlg> m_createTorrentDlg;

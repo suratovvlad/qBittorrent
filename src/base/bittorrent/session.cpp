@@ -48,8 +48,6 @@
 #include <queue>
 #include <vector>
 
-#include <boost/bind.hpp>
-
 #include <libtorrent/alert_types.hpp>
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/error_code.hpp>
@@ -70,6 +68,7 @@
 #include "base/net/portforwarder.h"
 #include "base/preferences.h"
 #include "base/settingsstorage.h"
+#include "base/torrentfileguard.h"
 #include "base/torrentfilter.h"
 #include "base/unicodestrings.h"
 #include "base/utils/misc.h"
@@ -99,10 +98,10 @@ const QString KEY_DEFAULTSAVEPATH = SETTINGS_KEY("DefaultSavePath");
 const QString KEY_TEMPPATH = SETTINGS_KEY("TempPath");
 const QString KEY_SUBCATEGORIESENABLED = SETTINGS_KEY("SubcategoriesEnabled");
 const QString KEY_TEMPPATHENABLED = SETTINGS_KEY("TempPathEnabled");
-const QString KEY_DISABLEASMBYDEFAULT = SETTINGS_KEY("DisableASMByDefault");
-const QString KEY_DISABLEASMONCATEGORYCHANGED = SETTINGS_KEY("DisableASMTriggers/CategoryChanged");
-const QString KEY_DISABLEASMONDEFAULTSAVEPATHCHANGED = SETTINGS_KEY("DisableASMTriggers/DefaultSavePathChanged");
-const QString KEY_DISABLEASMONCATEGORYSAVEPATHCHANGED = SETTINGS_KEY("DisableASMTriggers/CategorySavePathChanged");
+const QString KEY_DISABLE_AUTOTMM_BYDEFAULT = SETTINGS_KEY("DisableAutoTMMByDefault");
+const QString KEY_DISABLE_AUTOTMM_ONCATEGORYCHANGED = SETTINGS_KEY("DisableAutoTMMTriggers/CategoryChanged");
+const QString KEY_DISABLE_AUTOTMM_ONDEFAULTSAVEPATHCHANGED = SETTINGS_KEY("DisableAutoTMMTriggers/DefaultSavePathChanged");
+const QString KEY_DISABLE_AUTOTMM_ONCATEGORYSAVEPATHCHANGED = SETTINGS_KEY("DisableAutoTMMTriggers/CategorySavePathChanged");
 const QString KEY_ADDTORRENTPAUSED = SETTINGS_KEY("AddTorrentPaused");
 
 namespace
@@ -226,7 +225,17 @@ Session::Session(QObject *parent)
 
     logger->addMessage(tr("Peer ID: ") + Utils::String::fromStdString(fingerprint.to_string()));
 
-    m_nativeSession->set_alert_dispatch(boost::bind(&Session::dispatchAlerts, this, _1));
+#if LIBTORRENT_VERSION_NUM < 10100
+    m_nativeSession->set_alert_dispatch([this](std::auto_ptr<libt::alert> alertPtr)
+    {
+        dispatchAlerts(alertPtr);
+    });
+#else
+    m_nativeSession->set_alert_notify([this]()
+    {
+        QMetaObject::invokeMethod(this, "readAlerts", Qt::QueuedConnection);
+    });
+#endif
 
     // Enabling plugins
     //m_nativeSession->add_extension(&libt::create_metadata_plugin);
@@ -413,10 +422,10 @@ bool Session::editCategory(const QString &name, const QString &savePath)
     if (categorySavePath(name) == savePath) return false;
 
     m_categories[name] = savePath;
-    if (isDisableASMWhenCategorySavePathChanged()) {
+    if (isDisableAutoTMMWhenCategorySavePathChanged()) {
         foreach (TorrentHandle *const torrent, torrents())
             if (torrent->category() == name)
-                torrent->setASMEnabled(false);
+                torrent->setAutoTMMEnabled(false);
     }
     else {
         foreach (TorrentHandle *const torrent, torrents())
@@ -482,44 +491,44 @@ void Session::setSubcategoriesEnabled(bool value)
     emit subcategoriesSupportChanged();
 }
 
-bool Session::isASMDisabledByDefault() const
+bool Session::isAutoTMMDisabledByDefault() const
 {
-    return m_settings->loadValue(KEY_DISABLEASMBYDEFAULT, true).toBool();
+    return m_settings->loadValue(KEY_DISABLE_AUTOTMM_BYDEFAULT, true).toBool();
 }
 
-void Session::setASMDisabledByDefault(bool value)
+void Session::setAutoTMMDisabledByDefault(bool value)
 {
-    m_settings->storeValue(KEY_DISABLEASMBYDEFAULT, value);
+    m_settings->storeValue(KEY_DISABLE_AUTOTMM_BYDEFAULT, value);
 }
 
-bool Session::isDisableASMWhenCategoryChanged() const
+bool Session::isDisableAutoTMMWhenCategoryChanged() const
 {
-    return m_settings->loadValue(KEY_DISABLEASMONCATEGORYCHANGED, false).toBool();
+    return m_settings->loadValue(KEY_DISABLE_AUTOTMM_ONCATEGORYCHANGED, false).toBool();
 }
 
-void Session::setDisableASMWhenCategoryChanged(bool value)
+void Session::setDisableAutoTMMWhenCategoryChanged(bool value)
 {
-    m_settings->storeValue(KEY_DISABLEASMONCATEGORYCHANGED, value);
+    m_settings->storeValue(KEY_DISABLE_AUTOTMM_ONCATEGORYCHANGED, value);
 }
 
-bool Session::isDisableASMWhenDefaultSavePathChanged() const
+bool Session::isDisableAutoTMMWhenDefaultSavePathChanged() const
 {
-    return m_settings->loadValue(KEY_DISABLEASMONDEFAULTSAVEPATHCHANGED, true).toBool();
+    return m_settings->loadValue(KEY_DISABLE_AUTOTMM_ONDEFAULTSAVEPATHCHANGED, true).toBool();
 }
 
-void Session::setDisableASMWhenDefaultSavePathChanged(bool value)
+void Session::setDisableAutoTMMWhenDefaultSavePathChanged(bool value)
 {
-    m_settings->storeValue(KEY_DISABLEASMONDEFAULTSAVEPATHCHANGED, value);
+    m_settings->storeValue(KEY_DISABLE_AUTOTMM_ONDEFAULTSAVEPATHCHANGED, value);
 }
 
-bool Session::isDisableASMWhenCategorySavePathChanged() const
+bool Session::isDisableAutoTMMWhenCategorySavePathChanged() const
 {
-    return m_settings->loadValue(KEY_DISABLEASMONCATEGORYSAVEPATHCHANGED, true).toBool();
+    return m_settings->loadValue(KEY_DISABLE_AUTOTMM_ONCATEGORYSAVEPATHCHANGED, true).toBool();
 }
 
-void Session::setDisableASMWhenCategorySavePathChanged(bool value)
+void Session::setDisableAutoTMMWhenCategorySavePathChanged(bool value)
 {
-    m_settings->storeValue(KEY_DISABLEASMONCATEGORYSAVEPATHCHANGED, value);
+    m_settings->storeValue(KEY_DISABLE_AUTOTMM_ONCATEGORYSAVEPATHCHANGED, value);
 }
 
 bool Session::isAddTorrentPaused() const
@@ -675,6 +684,8 @@ void Session::setSessionSettings()
         sessionSettings.force_proxy = false;
     sessionSettings.no_connect_privileged_ports = false;
     sessionSettings.seed_choking_algorithm = libt::session_settings::fastest_upload;
+
+    sessionSettings.apply_ip_filter_to_trackers = pref->isFilteringTrackerEnabled();
     qDebug() << "Set session settings";
     m_nativeSession->set_settings(sessionSettings);
 }
@@ -1227,6 +1238,8 @@ bool Session::addTorrent(QString source, const AddTorrentParams &params)
         m_downloadedTorrents[handler->url()] = params;
     }
     else {
+        TorrentFileGuard guard(source);
+        guard.markAsAddedToSession();
         return addTorrent_impl(params, MagnetUri(), TorrentInfo::loadFromFile(source));
     }
 
@@ -1246,7 +1259,7 @@ bool Session::addTorrent_impl(AddTorrentData addData, const MagnetUri &magnetUri
 {
     addData.savePath = normalizeSavePath(
                 addData.savePath,
-                ((!addData.resumed && isASMDisabledByDefault()) ? m_defaultSavePath : ""));
+                ((!addData.resumed && isAutoTMMDisabledByDefault()) ? m_defaultSavePath : ""));
 
     if (!addData.category.isEmpty()) {
         if (!m_categories.contains(addData.category) && !addCategory(addData.category)) {
@@ -1261,9 +1274,9 @@ bool Session::addTorrent_impl(AddTorrentData addData, const MagnetUri &magnetUri
     std::vector<boost::uint8_t> filePriorities;
 
     QString savePath;
-    if (addData.savePath.isEmpty()) // using Advanced mode
+    if (addData.savePath.isEmpty()) // using Automatic mode
         savePath = categorySavePath(addData.category);
-    else  // using Simple mode
+    else  // using Manual mode
         savePath = addData.savePath;
 
     bool fromMagnetUri = magnetUri.isValid();
@@ -1355,9 +1368,6 @@ bool Session::addTorrent_impl(AddTorrentData addData, const MagnetUri &magnetUri
     p.max_connections = pref->getMaxConnecsPerTorrent();
     p.max_uploads = pref->getMaxUploadsPerTorrent();
     p.save_path = Utils::String::toStdString(Utils::Fs::toNativePath(savePath));
-    // Check if save path exists, creating it otherwise
-    if (!QDir(savePath).exists())
-        QDir().mkpath(savePath);
 
     m_addingTorrents.insert(hash, addData);
     // Adding torrent to BitTorrent session
@@ -1447,9 +1457,6 @@ bool Session::loadMetadata(const MagnetUri &magnetUri)
 
     QString savePath = QString("%1/%2").arg(QDir::tempPath()).arg(hash);
     p.save_path = Utils::String::toStdString(Utils::Fs::toNativePath(savePath));
-    // Check if save path exists, creating it otherwise
-    if (!QDir(savePath).exists())
-        QDir().mkpath(savePath);
 
     // Forced start
     p.flags &= ~libt::add_torrent_params::flag_paused;
@@ -1633,7 +1640,7 @@ void Session::saveResumeData()
     generateResumeData(true);
 
     while (m_numResumeData > 0) {
-        QVector<libt::alert *> alerts;
+        std::vector<libt::alert *> alerts;
         getPendingAlerts(alerts, 30 * 1000);
         if (alerts.empty()) {
             std::cerr << " aborting with " << m_numResumeData
@@ -1642,7 +1649,7 @@ void Session::saveResumeData()
             break;
         }
 
-        foreach (libt::alert *const a, alerts) {
+        for (const auto a: alerts) {
             switch (a->type()) {
             case libt::save_resume_data_failed_alert::alert_type:
             case libt::save_resume_data_alert::alert_type:
@@ -1651,8 +1658,9 @@ void Session::saveResumeData()
                     torrent->handleAlert(a);
                 break;
             }
-
+#if LIBTORRENT_VERSION_NUM < 10100
             delete a;
+#endif
         }
     }
 }
@@ -1665,9 +1673,9 @@ void Session::setDefaultSavePath(QString path)
     m_defaultSavePath = path;
     m_settings->storeValue(KEY_DEFAULTSAVEPATH, m_defaultSavePath);
 
-    if (isDisableASMWhenDefaultSavePathChanged())
+    if (isDisableAutoTMMWhenDefaultSavePathChanged())
         foreach (TorrentHandle *const torrent, torrents())
-            torrent->setASMEnabled(false);
+            torrent->setAutoTMMEnabled(false);
     else
         foreach (TorrentHandle *const torrent, torrents())
             torrent->handleCategorySavePathChanged();
@@ -1721,10 +1729,24 @@ const QStringList Session::getListeningIPs()
     QStringList IPs;
 
     const QString ifaceName = pref->getNetworkInterface();
+    const QString ifaceAddr = pref->getNetworkInterfaceAddress();
     const bool listenIPv6 = pref->getListenIPv6();
 
+    if (!ifaceAddr.isEmpty()) {
+        QHostAddress addr(ifaceAddr);
+        if (addr.isNull()) {
+            logger->addMessage(tr("Configured network interface address %1 isn't valid.", "Configured network interface address 124.5.1568.1 isn't valid.").arg(ifaceAddr), Log::CRITICAL);
+            IPs.append("127.0.0.1"); // Force listening to localhost and avoid accidental connection that will expose user data.
+            return IPs;
+        }
+    }
+
     if (ifaceName.isEmpty()) {
-        IPs.append(QString());
+        if (!ifaceAddr.isEmpty())
+            IPs.append(ifaceAddr);
+        else
+            IPs.append(QString());
+
         return IPs;
     }
 
@@ -1750,7 +1772,17 @@ const QStringList Session::getListeningIPs()
         if ((!listenIPv6 && (protocol == QAbstractSocket::IPv6Protocol))
             || (listenIPv6 && (protocol == QAbstractSocket::IPv4Protocol)))
             continue;
-        IPs.append(ipString);
+
+        // If an iface address has been defined only allow ip's that match it to go through
+        if (!ifaceAddr.isEmpty()) {
+            if (ifaceAddr == ipString) {
+                IPs.append(ipString);
+                break;
+            }
+        }
+        else {
+            IPs.append(ipString);
+        }
     }
 
     // Make sure there is at least one IP
@@ -2277,41 +2309,51 @@ void Session::handleIPFilterError()
     emit ipFilterParsed(true, 0);
 }
 
+#if LIBTORRENT_VERSION_NUM < 10100
 void Session::dispatchAlerts(std::auto_ptr<libt::alert> alertPtr)
 {
     QMutexLocker lock(&m_alertsMutex);
 
-    bool wasEmpty = m_alerts.isEmpty();
+    bool wasEmpty = m_alerts.empty();
 
-    m_alerts.append(alertPtr.release());
+    m_alerts.push_back(alertPtr.release());
 
     if (wasEmpty) {
         m_alertsWaitCondition.wakeAll();
         QMetaObject::invokeMethod(this, "readAlerts", Qt::QueuedConnection);
     }
 }
+#endif
 
-void Session::getPendingAlerts(QVector<libt::alert *> &out, ulong time)
+void Session::getPendingAlerts(std::vector<libt::alert *> &out, ulong time)
 {
     Q_ASSERT(out.empty());
 
+#if LIBTORRENT_VERSION_NUM < 10100
     QMutexLocker lock(&m_alertsMutex);
 
     if (m_alerts.empty())
         m_alertsWaitCondition.wait(&m_alertsMutex, time);
 
     m_alerts.swap(out);
+#else
+    if (time > 0)
+        m_nativeSession->wait_for_alert(libt::milliseconds(time));
+    m_nativeSession->pop_alerts(&out);
+#endif
 }
 
 // Read alerts sent by the BitTorrent session
 void Session::readAlerts()
 {
-    QVector<libt::alert *> alerts;
+    std::vector<libt::alert *> alerts;
     getPendingAlerts(alerts);
 
-    foreach (libt::alert *const a, alerts) {
+    for (const auto a: alerts) {
         handleAlert(a);
+#if LIBTORRENT_VERSION_NUM < 10100
         delete a;
+#endif
     }
 }
 
@@ -2458,6 +2500,9 @@ void Session::createTorrentHandle(const libt::torrent_handle &nativeHandle)
 
     // Send torrent addition signal
     emit torrentAdded(torrent);
+    // Send new torrent signal
+    if (!data.resumed)
+        emit torrentNew(torrent);
 }
 
 void Session::handleAddTorrentAlert(libt::add_torrent_alert *p)

@@ -84,7 +84,7 @@
 #include "statusbar.h"
 #include "rss_imp.h"
 #include "about_imp.h"
-#include "options_imp.h"
+#include "optionsdlg.h"
 #include "trackerlogin.h"
 #include "lineedit.h"
 #include "executionlog.h"
@@ -186,7 +186,7 @@ MainWindow::MainWindow(QWidget *parent)
     // Creating Bittorrent session
     connect(BitTorrent::Session::instance(), SIGNAL(fullDiskError(BitTorrent::TorrentHandle *const, QString)), this, SLOT(fullDiskError(BitTorrent::TorrentHandle *const, QString)));
     connect(BitTorrent::Session::instance(), SIGNAL(addTorrentFailed(const QString &)), this, SLOT(addTorrentFailed(const QString &)));
-    connect(BitTorrent::Session::instance(), SIGNAL(torrentAdded(BitTorrent::TorrentHandle *const)), this, SLOT(torrentAdded(BitTorrent::TorrentHandle *const)));
+    connect(BitTorrent::Session::instance(), SIGNAL(torrentNew(BitTorrent::TorrentHandle *const)), this, SLOT(torrentNew(BitTorrent::TorrentHandle *const)));
     connect(BitTorrent::Session::instance(), SIGNAL(torrentFinished(BitTorrent::TorrentHandle *const)), this, SLOT(finishedTorrent(BitTorrent::TorrentHandle *const)));
     connect(BitTorrent::Session::instance(), SIGNAL(trackerAuthenticationRequired(BitTorrent::TorrentHandle *const)), this, SLOT(trackerAuthenticationRequired(BitTorrent::TorrentHandle *const)));
     connect(BitTorrent::Session::instance(), SIGNAL(downloadFromUrlFailed(QString, QString)), this, SLOT(handleDownloadFromUrlFailure(QString, QString)));
@@ -679,12 +679,12 @@ void MainWindow::cleanup()
 #if (defined(Q_OS_WIN) || defined(Q_OS_MAC))
     m_programUpdateTimer->stop();
 #endif
-    delete m_searchFilter;
+
     delete m_searchFilterAction;
-    delete m_tabs; // this seems enough to also delete all contained widgets
-    delete m_statusBar;
-    delete m_pwr;
-    delete m_toolbarMenu;
+
+    // remove all child widgets
+    while (QWidget *w = findChild<QWidget *>())
+        delete w;
 }
 
 void MainWindow::readSettings()
@@ -724,7 +724,7 @@ void MainWindow::addTorrentFailed(const QString &error) const
 }
 
 // called when a torrent was added
-void MainWindow::torrentAdded(BitTorrent::TorrentHandle *const torrent) const
+void MainWindow::torrentNew(BitTorrent::TorrentHandle *const torrent) const
 {
     if (isTorrentAddedNotificationsEnabled())
         showNotificationBaloon(tr("Torrent added"), tr("'%1' was added.", "e.g: xxx.avi was added.").arg(torrent->name()));
@@ -1453,7 +1453,7 @@ void MainWindow::on_actionOptions_triggered()
     if (m_options)
         m_options->setFocus();
     else
-        m_options = new options_imp(this);
+        m_options = new OptionsDialog(this);
 }
 
 void MainWindow::on_actionTopToolBar_triggered()
@@ -1495,13 +1495,16 @@ void MainWindow::on_actionSearchWidget_triggered()
         bool res = false;
 
         if ((pythonVersion == 2) || (pythonVersion == 3)) {
-            // Check python minimum requirement: 2.7.0/3.3.0
+            // Check Python minimum requirement: 2.7.9 / 3.3.0
             QString version = Utils::Misc::pythonVersionComplete();
             QStringList splitted = version.split('.');
-            if (splitted.size() > 1) {
+            if (splitted.size() > 2) {
                 int middleVer = splitted.at(1).toInt();
-                if (((pythonVersion == 2) && (middleVer < 7)) || ((pythonVersion == 3) && (middleVer < 3))) {
-                    QMessageBox::information(this, tr("Old Python Interpreter"), tr("Your Python version %1 is outdated. Please upgrade to latest version for search engines to work. Minimum requirement: 2.7.0/3.3.0.").arg(version));
+                int lowerVer = splitted.at(2).toInt();
+                if (((pythonVersion == 2) && (middleVer < 7))
+                    || ((pythonVersion == 2) && (middleVer == 7) && (lowerVer < 9))
+                    || ((pythonVersion == 3) && (middleVer < 3))) {
+                    QMessageBox::information(this, tr("Old Python Interpreter"), tr("Your Python version (%1) is outdated. Please upgrade to latest version for search engines to work.\nMinimum requirement: 2.7.9 / 3.3.0.").arg(version));
                     m_ui->actionSearchWidget->setChecked(false);
                     Preferences::instance()->setSearchEnabled(false);
                     return;
