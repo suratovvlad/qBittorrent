@@ -164,7 +164,7 @@ PropertiesWidget::PropertiesWidget(QWidget *parent, MainWindow *main_window, Tra
     editHotkeyWeb = new QShortcut(QKeySequence("F2"), listWebSeeds, 0, 0, Qt::WidgetShortcut);
     connect(editHotkeyWeb, SIGNAL(activated()), SLOT(editWebSeed()));
     connect(listWebSeeds, SIGNAL(doubleClicked(QModelIndex)), SLOT(editWebSeed()));
-    deleteHotkeyWeb = new QShortcut(QKeySequence(QKeySequence::Delete), listWebSeeds, 0, 0, Qt::WidgetShortcut);
+    deleteHotkeyWeb = new QShortcut(QKeySequence::Delete, listWebSeeds, 0, 0, Qt::WidgetShortcut);
     connect(deleteHotkeyWeb, SIGNAL(activated()), SLOT(deleteSelectedUrlSeeds()));
     openHotkeyFile = new QShortcut(QKeySequence("Return"), filesList, 0, 0, Qt::WidgetShortcut);
     connect(openHotkeyFile, SIGNAL(activated()), SLOT(openSelectedFile()));
@@ -194,7 +194,7 @@ void PropertiesWidget::showPiecesAvailability(bool show)
     avail_pieces_lbl->setVisible(show);
     pieces_availability->setVisible(show);
     avail_average_lbl->setVisible(show);
-    if (show || (!show && !downloaded_pieces->isVisible()))
+    if (show || !downloaded_pieces->isVisible())
         line_2->setVisible(show);
 }
 
@@ -203,7 +203,7 @@ void PropertiesWidget::showPiecesDownloaded(bool show)
     downloaded_pieces_lbl->setVisible(show);
     downloaded_pieces->setVisible(show);
     progress_lbl->setVisible(show);
-    if (show || (!show && !pieces_availability->isVisible()))
+    if (show || !pieces_availability->isVisible())
         line_2->setVisible(show);
 }
 

@@ -58,7 +58,6 @@
 
 #define SETTINGS_KEY(name) "AddNewTorrentDialog/" name
 const QString KEY_ENABLED = SETTINGS_KEY("Enabled");
-const QString KEY_DEFAULTSAVEPATH = SETTINGS_KEY("DefaultSavePath");
 const QString KEY_DEFAULTCATEGORY = SETTINGS_KEY("DefaultCategory");
 const QString KEY_TREEHEADERSTATE = SETTINGS_KEY("TreeHeaderState");
 const QString KEY_WIDTH = SETTINGS_KEY("Width");
@@ -394,7 +393,7 @@ void AddNewTorrentDialog::onSavePathChanged(int index)
     ui->defaultSavePathCheckBox->setChecked(false);
     ui->defaultSavePathCheckBox->setVisible(
                 QDir(ui->savePathComboBox->itemData(ui->savePathComboBox->currentIndex()).toString())
-                != QDir(defaultSavePath()));
+                != QDir(BitTorrent::Session::instance()->defaultSavePath()));
 
     // Remember index
     m_oldIndex = index;
@@ -567,7 +566,7 @@ void AddNewTorrentDialog::setdialogPosition()
 
 void AddNewTorrentDialog::populateSavePathComboBox()
 {
-    QString defSavePath = defaultSavePath();
+    QString defSavePath = BitTorrent::Session::instance()->defaultSavePath();
 
     ui->savePathComboBox->clear();
     ui->savePathComboBox->addItem(Utils::Fs::toNativePath(defSavePath), defSavePath);
@@ -646,7 +645,7 @@ void AddNewTorrentDialog::accept()
         params.savePath = savePath;
         saveSavePathHistory();
         if (ui->defaultSavePathCheckBox->isChecked())
-            settings()->storeValue(KEY_DEFAULTSAVEPATH, savePath);
+            BitTorrent::Session::instance()->setDefaultSavePath(savePath);
     }
 
     setEnabled(!ui->never_show_cb->isChecked());
@@ -690,7 +689,6 @@ void AddNewTorrentDialog::updateMetadata(const BitTorrent::TorrentInfo &info)
 
     // Update UI
     setupTreeview();
-    TMMChanged(ui->comboTTM->currentIndex());
     setMetadataProgressIndicator(false, tr("Metadata retrieval complete"));
 }
 
@@ -742,13 +740,6 @@ void AddNewTorrentDialog::setupTreeview()
     showAdvancedSettings(settings()->loadValue(KEY_EXPANDED, false).toBool());
     // Set dialog position
     setdialogPosition();
-}
-
-QString AddNewTorrentDialog::defaultSavePath() const
-{
-    return Utils::Fs::fromNativePath(
-                settings()->loadValue(KEY_DEFAULTSAVEPATH,
-                                      BitTorrent::Session::instance()->defaultSavePath()).toString());
 }
 
 void AddNewTorrentDialog::handleDownloadFailed(const QString &url, const QString &reason)

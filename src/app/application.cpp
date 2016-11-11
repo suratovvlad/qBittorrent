@@ -70,6 +70,7 @@
 #include "base/net/smtp.h"
 #include "base/net/downloadmanager.h"
 #include "base/net/geoipmanager.h"
+#include "base/net/proxyconfigurationmanager.h"
 #include "base/bittorrent/session.h"
 #include "base/bittorrent/torrenthandle.h"
 
@@ -261,14 +262,9 @@ void Application::runExternalProgram(BitTorrent::TorrentHandle *const torrent) c
 #if defined(Q_OS_UNIX)
     QProcess::startDetached(QLatin1String("/bin/sh"), {QLatin1String("-c"), program});
 #elif defined(Q_OS_WIN)  // test cmd: `echo "%F" > "c:\ab ba.txt"`
-    static const QString cmdPath = []() -> QString {
-        WCHAR systemPath[64] = {0};
-        GetSystemDirectoryW(systemPath, sizeof(systemPath) / sizeof(WCHAR));
-        return QString::fromWCharArray(systemPath) + QLatin1String("\\cmd.exe /C ");
-    }();
     program.prepend(QLatin1String("\"")).append(QLatin1String("\""));
-    program.prepend(cmdPath);
-    const uint cmdMaxLength = 32768;  // max length (incl. terminate char) for `lpCommandLine` in `CreateProcessW()`
+    program.prepend(Utils::Misc::windowsSystemPath() + QLatin1String("\\cmd.exe /C "));
+    const int cmdMaxLength = 32768;  // max length (incl. terminate char) for `lpCommandLine` in `CreateProcessW()`
     if ((program.size() + 1) > cmdMaxLength) {
         logger->addMessage(tr("Torrent: %1, run external program command too long (length > %2), execution failed.").arg(torrent->name()).arg(cmdMaxLength), Log::CRITICAL);
         return;
@@ -400,6 +396,7 @@ void Application::processParams(const QStringList &params)
 
 int Application::exec(const QStringList &params)
 {
+    Net::ProxyConfigurationManager::initInstance();
     Net::DownloadManager::initInstance();
 #ifdef DISABLE_GUI
     IconProvider::initInstance();
@@ -626,6 +623,7 @@ void Application::cleanup()
     Net::GeoIPManager::freeInstance();
 #endif
     Net::DownloadManager::freeInstance();
+    Net::ProxyConfigurationManager::freeInstance();
     Preferences::freeInstance();
     SettingsStorage::freeInstance();
     delete m_fileLogger;
