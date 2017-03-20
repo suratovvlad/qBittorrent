@@ -34,6 +34,7 @@ endforeach()
 
 set(QBT_APP_RESOURCES
 ../icons.qrc
+../style.qrc
 "${_lang_qrc_dst}"
 )
 
