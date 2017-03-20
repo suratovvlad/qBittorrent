@@ -55,15 +55,7 @@
 #include <winbase.h>
 #endif
 
-#ifndef QBT_USES_QT5
-
-#ifndef DISABLE_GUI
-#include <QDesktopServices>
-#endif
-
-#else
 #include <QStandardPaths>
-#endif
 
 
 #include "misc.h"
@@ -182,24 +174,7 @@ bool Utils::Fs::forceRemove(const QString& file_path)
  */
 void Utils::Fs::removeDirRecursive(const QString& dirName)
 {
-#ifdef QBT_USES_QT5
     QDir(dirName).removeRecursively();
-#else
-    QDir dir(dirName);
-
-    if (!dir.exists()) return;
-
-    Q_FOREACH(QFileInfo info, dir.entryInfoList(QDir::NoDotAndDotDot |
-                                                QDir::System |
-                                                QDir::Hidden |
-                                                QDir::AllDirs |
-                                                QDir::Files, QDir::DirsFirst)) {
-        if (info.isDir()) removeDirRecursive(info.absoluteFilePath());
-        else forceRemove(info.absoluteFilePath());
-    }
-
-    dir.rmdir(dirName);
-#endif
 }
 
 /**
@@ -269,67 +244,43 @@ bool Utils::Fs::isValidFileSystemName(const QString &name, bool allowSeparators)
     return !name.contains(regex);
 }
 
-qlonglong Utils::Fs::freeDiskSpaceOnPath(QString path)
+qulonglong Utils::Fs::freeDiskSpaceOnPath(const QString &path)
 {
-    if (path.isEmpty()) return -1;
-    QDir dir_path(path);
-    if (!dir_path.exists()) {
-        QStringList parts = path.split("/");
-        while (parts.size() > 1 && !QDir(parts.join("/")).exists()) {
-            parts.removeLast();
-        }
-        dir_path = QDir(parts.join("/"));
-        if (!dir_path.exists()) return -1;
-    }
-    Q_ASSERT(dir_path.exists());
+    if (path.isEmpty()) return 0;
 
-#ifndef Q_OS_WIN
-    unsigned long long available;
-#ifdef Q_OS_HAIKU
-    const QString statfs_path = dir_path.path() + "/.";
-    dev_t device = dev_for_path (qPrintable(statfs_path));
-    if (device >= 0) {
-        fs_info info;
-        if (fs_stat_dev(device, &info) == B_OK) {
-            available = ((unsigned long long)(info.free_blocks * info.block_size));
-            return available;
-        }
+    QDir dirPath(path);
+    if (!dirPath.exists()) {
+        QStringList parts = path.split("/");
+        while (parts.size() > 1 && !QDir(parts.join("/")).exists())
+            parts.removeLast();
+
+        dirPath = QDir(parts.join("/"));
+        if (!dirPath.exists()) return 0;
     }
-    return -1;
+    Q_ASSERT(dirPath.exists());
+
+#if defined(Q_OS_WIN)
+    ULARGE_INTEGER bytesFree;
+    LPCWSTR nativePath = reinterpret_cast<LPCWSTR>((toNativePath(dirPath.path())).utf16());
+    if (GetDiskFreeSpaceExW(nativePath, &bytesFree, NULL, NULL) == 0)
+        return 0;
+    return bytesFree.QuadPart;
+#elif defined(Q_OS_HAIKU)
+    const QString statfsPath = dirPath.path() + "/.";
+    dev_t device = dev_for_path(qPrintable(statfsPath));
+    if (device < 0)
+        return 0;
+    fs_info info;
+    if (fs_stat_dev(device, &info) != B_OK)
+        return 0;
+    return ((qulonglong) info.free_blocks * (qulonglong) info.block_size);
 #else
     struct statfs stats;
-    const QString statfs_path = dir_path.path() + "/.";
-    const int ret = statfs(qPrintable(statfs_path), &stats);
-    if (ret == 0) {
-        available = ((unsigned long long)stats.f_bavail)
-                * ((unsigned long long)stats.f_bsize);
-        return available;
-    }
-    else {
-        return -1;
-    }
-#endif
-#else
-    typedef BOOL (WINAPI *GetDiskFreeSpaceEx_t)(LPCTSTR,
-                                                PULARGE_INTEGER,
-                                                PULARGE_INTEGER,
-                                                PULARGE_INTEGER);
-    GetDiskFreeSpaceEx_t pGetDiskFreeSpaceEx =
-            (GetDiskFreeSpaceEx_t)::GetProcAddress(::GetModuleHandleW(L"kernel32.dll"), "GetDiskFreeSpaceExW");
-    if (pGetDiskFreeSpaceEx) {
-        ULARGE_INTEGER bytesFree, bytesTotal;
-        unsigned long long *ret;
-        if (pGetDiskFreeSpaceEx((LPCTSTR)(toNativePath(dir_path.path())).utf16(), &bytesFree, &bytesTotal, NULL)) {
-            ret = (unsigned long long*)&bytesFree;
-            return *ret;
-        }
-        else {
-            return -1;
-        }
-    }
-    else {
-        return -1;
-    }
+    const QString statfsPath = dirPath.path() + "/.";
+    const int ret = statfs(qPrintable(statfsPath), &stats);
+    if (ret != 0)
+        return 0;
+    return ((qulonglong) stats.f_bavail * (qulonglong) stats.f_bsize);
 #endif
 }
 
@@ -378,19 +329,17 @@ QString Utils::Fs::expandPathAbs(const QString& path)
 QString Utils::Fs::QDesktopServicesDataLocation()
 {
     QString result;
-#ifdef Q_OS_WIN
-    LPWSTR path=new WCHAR[256];
-    if (SHGetSpecialFolderPath(0, path, CSIDL_LOCAL_APPDATA, FALSE))
+#if defined(Q_OS_WIN)
+    wchar_t path[MAX_PATH + 1] = {L'\0'};
+    if (SHGetSpecialFolderPathW(0, path, CSIDL_LOCAL_APPDATA, FALSE))
         result = fromNativePath(QString::fromWCharArray(path));
     if (!QCoreApplication::applicationName().isEmpty())
         result += QLatin1String("/") + qApp->applicationName();
-#else
-#ifdef Q_OS_MAC
+#elif defined(Q_OS_MAC)
     FSRef ref;
     OSErr err = FSFindFolder(kUserDomain, kApplicationSupportFolderType, false, &ref);
     if (err)
         return QString();
-    QString path;
     QByteArray ba(2048, 0);
     if (FSRefMakePath(&ref, reinterpret_cast<UInt8 *>(ba.data()), ba.size()) == noErr)
         result = QString::fromUtf8(ba).normalized(QString::NormalizationForm_C);
@@ -402,7 +351,6 @@ QString Utils::Fs::QDesktopServicesDataLocation()
     xdgDataHome += QLatin1String("/data/")
             + qApp->applicationName();
     result = xdgDataHome;
-#endif
 #endif
     if (!result.endsWith("/"))
         result += "/";
@@ -440,74 +388,12 @@ QString Utils::Fs::QDesktopServicesCacheLocation()
 
 QString Utils::Fs::QDesktopServicesDownloadLocation()
 {
-#ifdef QBT_USES_QT5
 #if defined(Q_OS_WIN)
     if (QSysInfo::windowsVersion() <= QSysInfo::WV_XP)  // Windows XP
         return QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).absoluteFilePath(
                     QCoreApplication::translate("fsutils", "Downloads"));
 #endif
     return QStandardPaths::writableLocation(QStandardPaths::DownloadLocation);
-#else
-
-#if defined(Q_OS_OS2)
-    return QDir(QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation)).absoluteFilePath(
-                QCoreApplication::translate("fsutils", "Downloads"));
-#endif
-
-#if defined(Q_OS_WIN)
-    // as long as it stays WinXP like we do the same on OS/2
-    // TODO: Use IKnownFolderManager to get path of FOLDERID_Downloads
-    // instead of hardcoding "Downloads"
-    // Unfortunately, this would break compatibility with WinXP
-    if (QSysInfo::windowsVersion() <= QSysInfo::WV_XP)  // Windows XP
-        return QDir(QDesktopServices::storageLocation(QDesktopServices::DocumentsLocation)).absoluteFilePath(
-                    QCoreApplication::translate("fsutils", "Downloads"));
-    else
-        return QDir(QDesktopServices::storageLocation(QDesktopServices::HomeLocation)).absoluteFilePath("Downloads");
-#endif
-
-#if (defined(Q_OS_UNIX) && !defined(Q_OS_MAC))
-    QString save_path;
-    // Default save path on Linux
-    QString config_path = QString::fromLocal8Bit(qgetenv("XDG_CONFIG_HOME").constData());
-    if (config_path.isEmpty())
-        config_path = QDir::home().absoluteFilePath(".config");
-
-    QString user_dirs_file = config_path + "/user-dirs.dirs";
-    if (QFile::exists(user_dirs_file)) {
-        QSettings settings(user_dirs_file, QSettings::IniFormat);
-        // We need to force UTF-8 encoding here since this is not
-        // the default for Ini files.
-        settings.setIniCodec("UTF-8");
-        QString xdg_download_dir = settings.value("XDG_DOWNLOAD_DIR").toString();
-        if (!xdg_download_dir.isEmpty()) {
-            // Resolve $HOME environment variables
-            xdg_download_dir.replace("$HOME", QDir::homePath());
-            save_path = xdg_download_dir;
-            qDebug() << Q_FUNC_INFO << "SUCCESS: Using XDG path for downloads: " << save_path;
-        }
-    }
-
-    // Fallback
-    if (!save_path.isEmpty() && !QFile::exists(save_path)) {
-        QDir().mkpath(save_path);
-    }
-
-    if (save_path.isEmpty() || !QFile::exists(save_path)) {
-        save_path = QDir::home().absoluteFilePath(QCoreApplication::translate("fsutils", "Downloads"));
-        qDebug() << Q_FUNC_INFO << "using" << save_path << "as fallback since the XDG detection did not work";
-    }
-
-    return save_path;
-#endif
-
-#if defined(Q_OS_MAC)
-    // TODO: How to support this on Mac OS?
-#endif
-
-    // Fallback
-    return QDir::home().absoluteFilePath(QCoreApplication::translate("fsutils", "Downloads"));
-#endif
 }
 
 QString Utils::Fs::cacheLocation()
@@ -517,4 +403,11 @@ QString Utils::Fs::cacheLocation()
     if (!locationDir.exists())
         locationDir.mkpath(locationDir.absolutePath());
     return location;
+}
+
+QString Utils::Fs::tempPath()
+{
+    static const QString path = QDir::tempPath() + "/.qBittorrent/";
+    QDir().mkdir(path);
+    return path;
 }

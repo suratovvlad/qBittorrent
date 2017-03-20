@@ -38,10 +38,6 @@
 #include "logger.h"
 #include "utils/fs.h"
 
-#ifdef Q_OS_MAC
-#define QSETTINGS_SYNC_IS_SAVE // whether QSettings::sync() is "atomic"
-#endif
-
 namespace
 {
     // Encapsulates serialization of settings in "atomic" way.
@@ -69,7 +65,7 @@ namespace
         using SettingsPtr = std::unique_ptr<QSettings>;
         SettingsPtr createSettings(const QString &name)
         {
-#ifdef Q_OS_WIN
+#if defined(Q_OS_WIN) || defined(Q_OS_MAC)
             return SettingsPtr(new QSettings(QSettings::IniFormat, QSettings::UserScope, "qBittorrent", name));
 #else
             return SettingsPtr(new QSettings("qBittorrent", name));
@@ -79,20 +75,7 @@ namespace
         QString m_name;
     };
 
-#ifdef QBT_USES_QT5
     typedef QHash<QString, QString> MappingTable;
-#else
-    class MappingTable: public QHash<QString, QString>
-    {
-    public:
-        MappingTable(std::initializer_list<std::pair<QString, QString>> list)
-        {
-            reserve(static_cast<int>(list.size()));
-            for (const auto &i : list)
-                insert(i.first, i.second);
-        }
-    };
-#endif
 
     QString mapKey(const QString &key)
     {
@@ -131,7 +114,6 @@ namespace
             {"BitTorrent/Session/DHTEnabled", "Preferences/Bittorrent/DHT"},
             {"BitTorrent/Session/LSDEnabled", "Preferences/Bittorrent/LSD"},
             {"BitTorrent/Session/PeXEnabled", "Preferences/Bittorrent/PeX"},
-            {"BitTorrent/Session/TrackerExchangeEnabled", "Preferences/Advanced/LtTrackerExchange"},
             {"BitTorrent/Session/AddTrackersEnabled", "Preferences/Bittorrent/AddTrackers"},
             {"BitTorrent/Session/AdditionalTrackers", "Preferences/Bittorrent/TrackersList"},
             {"BitTorrent/Session/IPFilteringEnabled", "Preferences/IPFilter/Enabled"},
@@ -166,11 +148,7 @@ namespace
             {"Network/Proxy/IP", "Preferences/Connection/Proxy/IP"},
             {"Network/Proxy/Port", "Preferences/Connection/Proxy/Port"},
             {"Network/PortForwardingEnabled", "Preferences/Connection/UPnP"},
-#ifdef QBT_USES_QT5
             {"AddNewTorrentDialog/TreeHeaderState", "AddNewTorrentDialog/qt5/treeHeaderState"},
-#else
-            {"AddNewTorrentDialog/TreeHeaderState", "AddNewTorrentDialog/treeHeaderState"},
-#endif
             {"AddNewTorrentDialog/Width", "AddNewTorrentDialog/width"},
             {"AddNewTorrentDialog/Position", "AddNewTorrentDialog/y"},
             {"AddNewTorrentDialog/Expanded", "AddNewTorrentDialog/expanded"},
@@ -266,9 +244,6 @@ void SettingsStorage::removeValue(const QString &key)
 QVariantHash TransactionalSettings::read()
 {
     QVariantHash res;
-#ifdef QSETTINGS_SYNC_IS_SAVE
-    deserialize(m_name, res);
-#else
     bool writeBackNeeded = false;
     QString newPath = deserialize(m_name + QLatin1String("_new"), res);
     if (!newPath.isEmpty()) { // "_new" file is NOT empty
@@ -287,15 +262,12 @@ QVariantHash TransactionalSettings::read()
 
     if (writeBackNeeded)
         write(res);
-#endif
+
     return res;
 }
 
 bool TransactionalSettings::write(const QVariantHash &data)
 {
-#ifdef QSETTINGS_SYNC_IS_SAVE
-    serialize(m_name, data);
-#else
     // QSettings delete the file before writing it out. This can result in problems
     // if the disk is full or a power outage occurs. Those events might occur
     // between deleting the file and recreating it. This is a safety measure.
@@ -312,7 +284,7 @@ bool TransactionalSettings::write(const QVariantHash &data)
     finalPath.remove(index, 4);
     Utils::Fs::forceRemove(finalPath);
     QFile::rename(newPath, finalPath);
-#endif
+
     return true;
 }
 

@@ -42,11 +42,7 @@
 #include <QSplashScreen>
 #ifdef QBT_STATIC_QT
 #include <QtPlugin>
-#ifdef QBT_USES_QT5
 Q_IMPORT_PLUGIN(QICOPlugin)
-#else
-Q_IMPORT_PLUGIN(qico)
-#endif
 #endif // QBT_STATIC_QT
 
 #else
@@ -137,6 +133,16 @@ int main(int argc, char *argv[])
     // We must save it here because QApplication constructor may change it
     bool isOneArg = (argc == 2);
 
+#ifdef Q_OS_MAC
+    // On macOS 10.12 Sierra, Apple changed the behaviour of CFPreferencesSetValue() https://bugreports.qt.io/browse/QTBUG-56344
+    // Due to this, we have to move from native plist to IniFormat
+    macMigratePlists();
+#endif
+
+#ifndef DISABLE_GUI
+    migrateRSS();
+#endif
+
     // Create Application
     QString appId = QLatin1String("qBittorrent-") + Utils::Misc::getUserIDString();
     QScopedPointer<Application> app(new Application(appId, argc, argv));
@@ -185,7 +191,7 @@ int main(int argc, char *argv[])
     }
 
     // Set environment variable
-    if (!qputenv("QBITTORRENT", QByteArray(VERSION)))
+    if (!qputenv("QBITTORRENT", QBT_VERSION))
         std::cerr << "Couldn't set environment variable...\n";
 
 #ifndef DISABLE_GUI
@@ -231,7 +237,7 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
-#if defined(Q_OS_WIN) && defined(QBT_USES_QT5)
+#if defined(Q_OS_WIN)
     // This affects only Windows apparently and Qt5.
     // When QNetworkAccessManager is instantiated it regularly starts polling
     // the network interfaces to see what's available and their status.
@@ -265,7 +271,6 @@ int main(int argc, char *argv[])
                  && isatty(fileno(stdout)))) return EXIT_FAILURE;
 #endif
 
-    srand(time(0));
 #ifdef DISABLE_GUI
     if (params.shouldDaemonize) {
         app.reset(); // Destroy current application
@@ -373,7 +378,7 @@ void sigAbnormalHandler(int signum)
     const char str1[] = "\n\n*************************************************************\nCatching signal: ";
     const char *sigName = sysSigName[signum];
     const char str2[] = "\nPlease file a bug report at http://bug.qbittorrent.org and provide the following information:\n\n"
-    "qBittorrent version: " VERSION "\n";
+    "qBittorrent version: " QBT_VERSION "\n";
     write(STDERR_FILENO, str1, strlen(str1));
     write(STDERR_FILENO, sigName, strlen(sigName));
     write(STDERR_FILENO, str2, strlen(str2));
@@ -394,7 +399,7 @@ void showSplashScreen()
 {
     QPixmap splash_img(":/icons/skin/splash.png");
     QPainter painter(&splash_img);
-    QString version = VERSION;
+    QString version = QBT_VERSION;
     painter.setPen(QPen(Qt::white));
     painter.setFont(QFont("Arial", 22, QFont::Black));
     painter.drawText(224 - painter.fontMetrics().width(version), 270, version);
@@ -407,7 +412,7 @@ void showSplashScreen()
 
 void displayVersion()
 {
-    std::cout << qPrintable(qApp->applicationName()) << " " << VERSION << std::endl;
+    std::cout << qPrintable(qApp->applicationName()) << " " << QBT_VERSION << std::endl;
 }
 
 QString makeUsage(const QString &prg_name)

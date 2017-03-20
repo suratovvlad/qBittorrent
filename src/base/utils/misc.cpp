@@ -94,7 +94,73 @@ static struct { const char *source; const char *comment; } units[] = {
 
 void Utils::Misc::shutdownComputer(const ShutdownDialogAction &action)
 {
-#if (defined(Q_OS_UNIX) && !defined(Q_OS_MAC)) && defined(QT_DBUS_LIB)
+#if defined(Q_OS_WIN)
+    HANDLE hToken;            // handle to process token
+    TOKEN_PRIVILEGES tkp;     // pointer to token structure
+    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
+        return;
+    // Get the LUID for shutdown privilege.
+    LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME,
+                         &tkp.Privileges[0].Luid);
+
+    tkp.PrivilegeCount = 1; // one privilege to set
+    tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+    // Get shutdown privilege for this process.
+
+    AdjustTokenPrivileges(hToken, FALSE, &tkp, 0,
+                          (PTOKEN_PRIVILEGES) NULL, 0);
+
+    // Cannot test the return value of AdjustTokenPrivileges.
+
+    if (GetLastError() != ERROR_SUCCESS)
+        return;
+
+    if (action == ShutdownDialogAction::Suspend)
+        SetSuspendState(false, false, false);
+    else if (action == ShutdownDialogAction::Hibernate)
+        SetSuspendState(true, false, false);
+    else
+        InitiateSystemShutdownA(0, QCoreApplication::translate("misc", "qBittorrent will shutdown the computer now because all downloads are complete.").toLocal8Bit().data(), 10, true, false);
+
+    // Disable shutdown privilege.
+    tkp.Privileges[0].Attributes = 0;
+    AdjustTokenPrivileges(hToken, FALSE, &tkp, 0, (PTOKEN_PRIVILEGES) NULL, 0);
+
+#elif defined(Q_OS_MAC)
+    AEEventID EventToSend;
+    if (action != ShutdownDialogAction::Shutdown)
+        EventToSend = kAESleep;
+    else
+        EventToSend = kAEShutDown;
+    AEAddressDesc targetDesc;
+    static const ProcessSerialNumber kPSNOfSystemProcess = { 0, kSystemProcess };
+    AppleEvent eventReply = {typeNull, NULL};
+    AppleEvent appleEventToSend = {typeNull, NULL};
+
+    OSStatus error = AECreateDesc(typeProcessSerialNumber, &kPSNOfSystemProcess,
+                                  sizeof(kPSNOfSystemProcess), &targetDesc);
+
+    if (error != noErr)
+        return;
+
+    error = AECreateAppleEvent(kCoreEventClass, EventToSend, &targetDesc,
+                               kAutoGenerateReturnID, kAnyTransactionID, &appleEventToSend);
+
+    AEDisposeDesc(&targetDesc);
+    if (error != noErr)
+        return;
+
+    error = AESend(&appleEventToSend, &eventReply, kAENoReply,
+                   kAENormalPriority, kAEDefaultTimeout, NULL, NULL);
+
+    AEDisposeDesc(&appleEventToSend);
+    if (error != noErr)
+        return;
+
+    AEDisposeDesc(&eventReply);
+
+#elif (defined(Q_OS_UNIX) && defined(QT_DBUS_LIB))
     // Use dbus to power off / suspend the system
     if (action != ShutdownDialogAction::Shutdown) {
         // Some recent systems use systemd's logind
@@ -147,73 +213,9 @@ void Utils::Misc::shutdownComputer(const ShutdownDialogAction &action)
                                 QDBusConnection::systemBus());
         halIface.call("Shutdown");
     }
-#endif
-#ifdef Q_OS_MAC
-    AEEventID EventToSend;
-    if (action != ShutdownDialogAction::Shutdown)
-        EventToSend = kAESleep;
-    else
-        EventToSend = kAEShutDown;
-    AEAddressDesc targetDesc;
-    static const ProcessSerialNumber kPSNOfSystemProcess = { 0, kSystemProcess };
-    AppleEvent eventReply = {typeNull, NULL};
-    AppleEvent appleEventToSend = {typeNull, NULL};
 
-    OSStatus error = AECreateDesc(typeProcessSerialNumber, &kPSNOfSystemProcess,
-                                  sizeof(kPSNOfSystemProcess), &targetDesc);
-
-    if (error != noErr)
-        return;
-
-    error = AECreateAppleEvent(kCoreEventClass, EventToSend, &targetDesc,
-                               kAutoGenerateReturnID, kAnyTransactionID, &appleEventToSend);
-
-    AEDisposeDesc(&targetDesc);
-    if (error != noErr)
-        return;
-
-    error = AESend(&appleEventToSend, &eventReply, kAENoReply,
-                   kAENormalPriority, kAEDefaultTimeout, NULL, NULL);
-
-    AEDisposeDesc(&appleEventToSend);
-    if (error != noErr)
-        return;
-
-    AEDisposeDesc(&eventReply);
-#endif
-#ifdef Q_OS_WIN
-    HANDLE hToken;            // handle to process token
-    TOKEN_PRIVILEGES tkp;     // pointer to token structure
-    if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &hToken))
-        return;
-    // Get the LUID for shutdown privilege.
-    LookupPrivilegeValue(NULL, SE_SHUTDOWN_NAME,
-                         &tkp.Privileges[0].Luid);
-
-    tkp.PrivilegeCount = 1; // one privilege to set
-    tkp.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
-
-    // Get shutdown privilege for this process.
-
-    AdjustTokenPrivileges(hToken, FALSE, &tkp, 0,
-                          (PTOKEN_PRIVILEGES) NULL, 0);
-
-    // Cannot test the return value of AdjustTokenPrivileges.
-
-    if (GetLastError() != ERROR_SUCCESS)
-        return;
-
-    if (action == ShutdownDialogAction::Suspend)
-        SetSuspendState(false, false, false);
-    else if (action == ShutdownDialogAction::Hibernate)
-        SetSuspendState(true, false, false);
-    else
-        InitiateSystemShutdownA(0, QCoreApplication::translate("misc", "qBittorrent will shutdown the computer now because all downloads are complete.").toLocal8Bit().data(), 10, true, false);
-
-    // Disable shutdown privilege.
-    tkp.Privileges[0].Attributes = 0;
-    AdjustTokenPrivileges(hToken, FALSE, &tkp, 0,
-                          (PTOKEN_PRIVILEGES) NULL, 0);
+#else
+    Q_UNUSED(action);
 #endif
 }
 
@@ -356,12 +358,20 @@ QString Utils::Misc::friendlyUnit(qint64 bytesValue, bool isSpeed)
         return QCoreApplication::translate("misc", "Unknown", "Unknown (size)");
     QString ret;
     if (unit == SizeUnit::Byte)
-        ret = QString::number(bytesValue) + " " + unitString(unit);
+        ret = QString::number(bytesValue) + QString::fromUtf8(C_NON_BREAKING_SPACE) + unitString(unit);
     else
-        ret = Utils::String::fromDouble(friendlyVal, 1) + " " + unitString(unit);
+        ret = Utils::String::fromDouble(friendlyVal, friendlyUnitPrecision(unit)) + QString::fromUtf8(C_NON_BREAKING_SPACE) + unitString(unit);
     if (isSpeed)
         ret += QCoreApplication::translate("misc", "/s", "per second");
     return ret;
+}
+
+int Utils::Misc::friendlyUnitPrecision(SizeUnit unit)
+{
+    // friendlyUnit's number of digits after the decimal point
+    if (unit <= SizeUnit::MebiByte) return 1;
+    else if (unit == SizeUnit::GibiByte) return 2;
+    else return 3;
 }
 
 qlonglong Utils::Misc::sizeInBytes(qreal size, Utils::Misc::SizeUnit unit)
@@ -430,21 +440,27 @@ QString Utils::Misc::userFriendlyDuration(qlonglong seconds)
 {
     if ((seconds < 0) || (seconds >= MAX_ETA))
         return QString::fromUtf8(C_INFINITY);
+
     if (seconds == 0)
         return "0";
+
     if (seconds < 60)
         return QCoreApplication::translate("misc", "< 1m", "< 1 minute");
-    int minutes = seconds / 60;
+
+    qlonglong minutes = seconds / 60;
     if (minutes < 60)
         return QCoreApplication::translate("misc", "%1m", "e.g: 10minutes").arg(QString::number(minutes));
-    int hours = minutes / 60;
-    minutes = minutes - hours * 60;
+
+    qlonglong hours = minutes / 60;
+    minutes -= hours * 60;
     if (hours < 24)
         return QCoreApplication::translate("misc", "%1h %2m", "e.g: 3hours 5minutes").arg(QString::number(hours)).arg(QString::number(minutes));
-    int days = hours / 24;
-    hours = hours - days * 24;
+
+    qlonglong days = hours / 24;
+    hours -= days * 24;
     if (days < 100)
         return QCoreApplication::translate("misc", "%1d %2h", "e.g: 2days 10hours").arg(QString::number(days)).arg(QString::number(hours));
+
     return QString::fromUtf8(C_INFINITY);
 }
 
@@ -580,7 +596,7 @@ void Utils::Misc::openFolderSelect(const QString &absolutePath)
     }
 #ifdef Q_OS_WIN
     HRESULT hresult = ::CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    ITEMIDLIST *pidl = ::ILCreateFromPathW(reinterpret_cast<PCTSTR>(Utils::Fs::toNativePath(path).utf16()));
+    PIDLIST_ABSOLUTE pidl = ::ILCreateFromPathW(reinterpret_cast<PCTSTR>(Utils::Fs::toNativePath(path).utf16()));
     if (pidl) {
         ::SHOpenFolderAndSelectItems(pidl, 0, nullptr, 0);
         ::ILFree(pidl);
@@ -609,6 +625,19 @@ void Utils::Misc::openFolderSelect(const QString &absolutePath)
 #endif
 }
 
+QSize Utils::Misc::smallIconSize()
+{
+    // Get DPI scaled icon size (device-dependent), see QT source
+    int s = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
+    return QSize(s, s);
+}
+
+QSize Utils::Misc::largeIconSize()
+{
+    // Get DPI scaled icon size (device-dependent), see QT source
+    int s = QApplication::style()->pixelMetric(QStyle::PM_LargeIconSize);
+    return QSize(s, s);
+}
 #endif // DISABLE_GUI
 
 namespace
@@ -629,28 +658,14 @@ void Utils::Misc::msleep(unsigned long msecs)
     SleeperThread::msleep(msecs);
 }
 
-#ifndef DISABLE_GUI
-QSize Utils::Misc::smallIconSize()
-{
-    // Get DPI scaled icon size (device-dependent), see QT source
-    int s = QApplication::style()->pixelMetric(QStyle::PM_SmallIconSize);
-    return QSize(s, s);
-}
-
-#endif
-
 QString Utils::Misc::osName()
 {
     // static initialization for usage in signal handler
     static const QString name =
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 4, 0))
         QString("%1 %2 %3")
         .arg(QSysInfo::prettyProductName())
         .arg(QSysInfo::kernelVersion())
         .arg(QSysInfo::currentCpuArchitecture());
-#else
-        "<Input OS name here>";
-#endif
     return name;
 }
 

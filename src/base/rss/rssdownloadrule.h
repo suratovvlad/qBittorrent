@@ -31,10 +31,13 @@
 #ifndef RSSDOWNLOADRULE_H
 #define RSSDOWNLOADRULE_H
 
-#include <QStringList>
+#include <QDateTime>
 #include <QVariantHash>
 #include <QSharedPointer>
-#include <QDateTime>
+#include <QStringList>
+
+template <class T, class U> class QHash;
+class QRegularExpression;
 
 namespace Rss
 {
@@ -55,6 +58,7 @@ namespace Rss
         };
 
         DownloadRule();
+        ~DownloadRule();
 
         static DownloadRulePtr fromVariantHash(const QVariantHash &ruleHash);
         QVariantHash toVariantHash() const;
@@ -88,6 +92,9 @@ namespace Rss
         bool operator==(const DownloadRule &other) const;
 
     private:
+        bool matches(const QString &articleTitle, const QString &expression) const;
+        QRegularExpression cachedRegex(const QString &expression, bool isRegex = true) const;
+
         QString m_name;
         QStringList m_mustContain;
         QStringList m_mustNotContain;
@@ -100,6 +107,7 @@ namespace Rss
         AddPausedState m_apstate;
         QDateTime m_lastMatch;
         int m_ignoreDays;
+        mutable QHash<QString, QRegularExpression> *m_cachedRegexes;
     };
 }
 

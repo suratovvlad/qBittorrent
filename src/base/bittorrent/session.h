@@ -57,6 +57,7 @@ namespace libtorrent
     struct torrent_handle;
     class entry;
     struct add_torrent_params;
+    struct ip_filter;
     struct pe_settings;
 #if LIBTORRENT_VERSION_NUM < 10100
     struct session_settings;
@@ -218,8 +219,6 @@ namespace BitTorrent
         void setLSDEnabled(bool enabled);
         bool isPeXEnabled() const;
         void setPeXEnabled(bool enabled);
-        bool isTrackerExchangeEnabled() const;
-        void setTrackerExchangeEnabled(bool enabled);
         bool isAddTorrentPaused() const;
         void setAddTorrentPaused(bool value);
         bool isTrackerEnabled() const;
@@ -328,6 +327,8 @@ namespace BitTorrent
         void setUTPRateLimited(bool limited);
         bool isTrackerFilteringEnabled() const;
         void setTrackerFilteringEnabled(bool enabled);
+        QStringList bannedIPs() const;
+        void setBannedIPs(const QStringList &list);
 
         TorrentHandle *findTorrent(const InfoHash &hash) const;
         QHash<InfoHash, TorrentHandle *> torrents() const;
@@ -449,7 +450,7 @@ namespace BitTorrent
         void adjustLimits(libtorrent::settings_pack &settingsPack);
 #endif
         void adjustLimits();
-        void processBannedIPs();
+        void processBannedIPs(libtorrent::ip_filter &filter);
         const QStringList getListeningIPs();
         void configureListeningInterface();
         void changeSpeedLimitMode_impl(bool alternative);
@@ -467,7 +468,7 @@ namespace BitTorrent
 
         void updateRatioTimer();
         void exportTorrentFile(TorrentHandle *const torrent, TorrentExportFolder folder = TorrentExportFolder::Regular);
-        void saveTorrentResumeData(TorrentHandle *const torrent);
+        void saveTorrentResumeData(TorrentHandle *const torrent, bool finalSave = false);
 
         void handleAlert(libtorrent::alert *a);
         void dispatchTorrentAlert(libtorrent::alert *a);
@@ -492,7 +493,7 @@ namespace BitTorrent
         void saveResumeData();
 
 #if LIBTORRENT_VERSION_NUM < 10100
-        void dispatchAlerts(std::auto_ptr<libtorrent::alert> alertPtr);
+        void dispatchAlerts(libtorrent::alert *alertPtr);
 #endif
         void getPendingAlerts(std::vector<libtorrent::alert *> &out, ulong time = 0);
 
@@ -507,7 +508,6 @@ namespace BitTorrent
         CachedSettingValue<bool> m_isDHTEnabled;
         CachedSettingValue<bool> m_isLSDEnabled;
         CachedSettingValue<bool> m_isPeXEnabled;
-        CachedSettingValue<bool> m_isTrackerExchangeEnabled;
         CachedSettingValue<bool> m_isIPFilteringEnabled;
         CachedSettingValue<bool> m_isTrackerFilteringEnabled;
         CachedSettingValue<QString> m_IPFilterFile;
@@ -572,11 +572,10 @@ namespace BitTorrent
         CachedSettingValue<bool> m_isTrackerEnabled;
         CachedSettingValue<QStringList> m_bannedIPs;
 
-        // Order is important. These need to be declared after their CachedSettingsValue
-        // counterparts, because they use them for initialization in the constructor
+        // Order is important. This needs to be declared after its CachedSettingsValue
+        // counterpart, because it uses it for initialization in the constructor
         // initialization list.
         const bool m_wasPexEnabled;
-        const bool m_wasTrackerExchangeEnabled;
 
         int m_numResumeData;
         int m_extraLimit;

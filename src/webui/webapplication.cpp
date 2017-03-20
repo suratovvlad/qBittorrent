@@ -49,8 +49,8 @@
 #include "websessiondata.h"
 #include "webapplication.h"
 
-static const int API_VERSION = 10;
-static const int API_VERSION_MIN = 10;
+static const int API_VERSION = 12;
+static const int API_VERSION_MIN = 11;
 
 const QString WWW_FOLDER = ":/www/public/";
 const QString PRIVATE_FOLDER = ":/www/private/";
@@ -348,7 +348,7 @@ void WebApplication::action_version_api_min()
 void WebApplication::action_version_qbittorrent()
 {
     CHECK_URI(0);
-    print(QString(VERSION), Http::CONTENT_TYPE_TXT);
+    print(QString(QBT_VERSION), Http::CONTENT_TYPE_TXT);
 }
 
 void WebApplication::action_command_shutdown()

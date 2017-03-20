@@ -17,12 +17,8 @@ file(GLOB QBT_TS_FILES ../lang/*.ts)
 get_filename_component(QBT_QM_FILES_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}/../lang" ABSOLUTE)
 set_source_files_properties(${QBT_TS_FILES} PROPERTIES OUTPUT_LOCATION "${QBT_QM_FILES_BINARY_DIR}")
 
-if (QT5)
-    find_package(Qt5 COMPONENTS LinguistTools REQUIRED)
-    qt5_add_translation(QBT_QM_FILES ${QBT_TS_FILES})
-else (QT5)
-    qt4_add_translation(QBT_QM_FILES ${QBT_TS_FILES})
-endif (QT5)
+find_package(Qt5 COMPONENTS LinguistTools REQUIRED)
+qt5_add_translation(QBT_QM_FILES ${QBT_TS_FILES})
 
 get_filename_component(_lang_qrc_src "${CMAKE_CURRENT_SOURCE_DIR}/../lang.qrc" ABSOLUTE)
 get_filename_component(_lang_qrc_dst "${CMAKE_CURRENT_BINARY_DIR}/../lang.qrc" ABSOLUTE)
@@ -55,6 +51,7 @@ if (WIN32)
     else (MINGW)
         list (APPEND QBT_APP_SOURCES ../qbittorrent.rc)
     endif (MINGW)
+    list(APPEND QBT_APP_SOURCES ../qbittorent.exe.manifest)
 endif (WIN32)
 
 if (UNIX)
@@ -161,10 +158,15 @@ endif (GUI AND WIN32)
 target_link_libraries(${QBT_TARGET_NAME} ${QBT_TARGET_LIBRARIES} QtSingleApplication::QtSingleApplication)
 
 if (APPLE)
-    set(qbt_BUNDLE_NAME "${CMAKE_PROJECT_NAME}")
+    set(qbt_BUNDLE_NAME "${QBT_TARGET_NAME}")
+
+# substitute @EXECUTABLE@ in dist/mac/Info.plist
+    set(EXECUTABLE ${qbt_BUNDLE_NAME})
+    configure_file(${qBittorrent_SOURCE_DIR}/dist/mac/Info.plist ${qBittorrent_BINARY_DIR}/dist/mac/Info.plist @ONLY)
+
     set_target_properties(${QBT_TARGET_NAME} PROPERTIES
         MACOSX_BUNDLE_BUNDLE_NAME "${qbt_BUNDLE_NAME}"
-        MACOSX_BUNDLE_INFO_PLIST ${qBittorrent_SOURCE_DIR}/dist/mac/Info.plist
+        MACOSX_BUNDLE_INFO_PLIST ${qBittorrent_BINARY_DIR}/dist/mac/Info.plist
     )
 endif (APPLE)
 

@@ -300,12 +300,12 @@ public:
     void setRssHSplitterSizes(const QByteArray &sizes);
     QStringList getRssOpenFolders() const;
     void setRssOpenFolders(const QStringList &folders);
-    QByteArray getRssHSplitterState() const;
-    void setRssHSplitterState(const QByteArray &state);
-    QByteArray getRssVSplitterState() const;
-    void setRssVSplitterState(const QByteArray &state);
-    QString getSearchColsWidth() const;
-    void setSearchColsWidth(const QString &width);
+    QByteArray getRssSideSplitterState() const;
+    void setRssSideSplitterState(const QByteArray &state);
+    QByteArray getRssMainSplitterState() const;
+    void setRssMainSplitterState(const QByteArray &state);
+    QByteArray getSearchTabHeaderState() const;
+    void setSearchTabHeaderState(const QByteArray &state);
     QStringList getSearchEngDisabled() const;
     void setSearchEngDisabled(const QStringList &engines);
     QString getCreateTorLastAddPath() const;

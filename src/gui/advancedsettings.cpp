@@ -66,6 +66,7 @@ enum AdvSettingsRows
     RESOLVE_COUNTRIES,
     PROGRAM_NOTIFICATIONS,
     TORRENT_ADDED_NOTIFICATIONS,
+    DOWNLOAD_TRACKER_FAVICON,
 #if (defined(Q_OS_UNIX) && !defined(Q_OS_MAC))
     USE_ICON_THEME,
 #endif
@@ -86,7 +87,6 @@ enum AdvSettingsRows
     // seeding
     SUPER_SEEDING,
     // tracker
-    TRACKER_EXCHANGE,
     ANNOUNCE_ALL_TRACKERS,
     ANNOUNCE_IP,
 
@@ -171,6 +171,8 @@ void AdvancedSettings::saveAdvancedSettings()
     MainWindow * const mainWindow = static_cast<Application*>(QCoreApplication::instance())->mainWindow();
     mainWindow->setNotificationsEnabled(cb_program_notifications.isChecked());
     mainWindow->setTorrentAddedNotificationsEnabled(cb_torrent_added_notifications.isChecked());
+    // Misc GUI properties
+    mainWindow->setDownloadTrackerFavicon(cb_tracker_favicon.isChecked());
 
     // Tracker
     session->setTrackerEnabled(cb_tracker_status.isChecked());
@@ -183,8 +185,6 @@ void AdvancedSettings::saveAdvancedSettings()
     pref->useSystemIconTheme(cb_use_icon_theme.isChecked());
 #endif
     pref->setConfirmTorrentRecheck(cb_confirm_torrent_recheck.isChecked());
-    // Tracker exchange
-    session->setTrackerExchangeEnabled(cb_enable_tracker_ext.isChecked());
     session->setAnnounceToAllTrackers(cb_announce_all_trackers.isChecked());
 }
 
@@ -354,6 +354,9 @@ void AdvancedSettings::loadAdvancedSettings()
     // Torrent added notifications
     cb_torrent_added_notifications.setChecked(mainWindow->isTorrentAddedNotificationsEnabled());
     addRow(TORRENT_ADDED_NOTIFICATIONS, tr("Display notifications for added torrents"), &cb_torrent_added_notifications);
+    // Download tracker's favicon
+    cb_tracker_favicon.setChecked(mainWindow->isDownloadTrackerFavicon());
+    addRow(DOWNLOAD_TRACKER_FAVICON, tr("Download tracker's favicon"), &cb_tracker_favicon);
 
     // Tracker State
     cb_tracker_status.setChecked(session->isTrackerEnabled());
@@ -374,9 +377,6 @@ void AdvancedSettings::loadAdvancedSettings()
     // Torrent recheck confirmation
     cb_confirm_torrent_recheck.setChecked(pref->confirmTorrentRecheck());
     addRow(CONFIRM_RECHECK_TORRENT, tr("Confirm torrent recheck"), &cb_confirm_torrent_recheck);
-    // Tracker exchange
-    cb_enable_tracker_ext.setChecked(session->isTrackerExchangeEnabled());
-    addRow(TRACKER_EXCHANGE, tr("Exchange trackers with other peers"), &cb_enable_tracker_ext);
     // Announce to all trackers
     cb_announce_all_trackers.setChecked(session->announceToAllTrackers());
     addRow(ANNOUNCE_ALL_TRACKERS, tr("Always announce to all trackers"), &cb_announce_all_trackers);
@@ -385,6 +385,10 @@ void AdvancedSettings::loadAdvancedSettings()
 template <typename T>
 void AdvancedSettings::addRow(int row, const QString &rowText, T* widget)
 {
+    // ignore mouse wheel event
+    static WheelEventEater filter;
+    widget->installEventFilter(&filter);
+
     setItem(row, PROPERTY, new QTableWidgetItem(rowText));
     setCellWidget(row, VALUE, widget);
 

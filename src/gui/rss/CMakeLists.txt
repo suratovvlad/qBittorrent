@@ -23,8 +23,5 @@ rsssettingsdlg.ui
 )
 
 add_library(qbt_rss STATIC ${QBT_RSS_HEADERS} ${QBT_RSS_SOURCE} ${QBT_RSS_FORMS})
-if (QT4_FOUND)
-    target_link_libraries(qbt_rss Qt4::QtGui Qt4::QtNetwork)
-else (QT4_FOUND)
-    target_link_libraries(qbt_rss Qt5::Gui Qt5::Widgets Qt5::Network)
-endif (QT4_FOUND)
+target_link_libraries(qbt_rss qbt_base)
+target_link_libraries(qbt_rss Qt5::Gui Qt5::Widgets Qt5::Network)

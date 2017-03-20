@@ -93,6 +93,7 @@ private slots:
     void handleScanFolderViewSelectionChanged();
     void on_IpFilterRefreshBtn_clicked();
     void handleIPFilterParsed(bool error, int ruleCount);
+    void on_banListButton_clicked();
     void on_browseFileLogDir_clicked();
     void on_browseExportDirButton_clicked();
     void on_browseExportDirFinButton_clicked();
@@ -171,8 +172,8 @@ private:
     QSize sizeFittingScreen() const;
 
 private:
-    void setSslKey(const QByteArray &key, bool interactive = true);
-    void setSslCertificate(const QByteArray &cert, bool interactive = true);
+    bool setSslKey(const QByteArray &key);
+    bool setSslCertificate(const QByteArray &cert);
     bool schedTimesOk();
     bool webUIAuthenticationOk();
 

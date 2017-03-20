@@ -37,6 +37,7 @@ SpeedPlotView::SpeedPlotView(QWidget *parent)
     , m_data5Min(MIN5_BUF_SIZE)
     , m_data30Min(MIN30_BUF_SIZE)
     , m_data6Hour(HOUR6_BUF_SIZE)
+    , m_period(MIN5)
     , m_viewablePointsCount(MIN5_SEC)
     , m_counter30Min(-1)
     , m_counter6Hour(-1)
@@ -159,7 +160,7 @@ int SpeedPlotView::maxYValue()
         if (!m_properties[static_cast<GraphID>(id)].enable)
             continue;
 
-        for (int i = queue.size() - 1, j = 0; i >= 0 && j <= m_viewablePointsCount; --i, ++j)
+        for (int i = int(queue.size()) - 1, j = 0; i >= 0 && j <= m_viewablePointsCount; --i, ++j)
             if (queue[i].y[id] > maxYValue)
                 maxYValue = queue[i].y[id];
     }
@@ -241,7 +242,7 @@ void SpeedPlotView::paintEvent(QPaintEvent *)
 
         QVector<QPoint> points;
 
-        for (int i = queue.size() - 1, j = 0; i >= 0 && j <= m_viewablePointsCount; --i, ++j) {
+        for (int i = int(queue.size()) - 1, j = 0; i >= 0 && j <= m_viewablePointsCount; --i, ++j) {
 
             int new_x = rect.right() - j * xTickSize;
             int new_y = rect.bottom() - queue[i].y[id] * yMultiplier;

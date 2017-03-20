@@ -64,7 +64,7 @@ namespace Rss
         Q_OBJECT
 
     public:
-        Feed(const QString &url, Manager *manager);
+        Feed(const QString &url, Manager * manager);
         ~Feed();
 
         bool refresh();
@@ -98,10 +98,13 @@ namespace Rss
         void handleArticleRead();
 
     private:
+        friend class Manager;
+
         QString iconUrl() const;
         void loadItemsFromDisk();
         void addArticle(const ArticlePtr &article);
         void downloadArticleTorrentIfMatching(const ArticlePtr &article);
+        void deferredDownloadArticleTorrentIfMatching(const ArticlePtr &article);
 
     private:
         Manager *m_manager;

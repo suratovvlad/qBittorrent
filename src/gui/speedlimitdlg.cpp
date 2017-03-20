@@ -103,8 +103,8 @@ void SpeedLimitDialog::setupDialog(long max_slider, long val) const
 {
     if (val < 0)
         val = 0;
-    if (max_slider < 0)
-        max_slider = 1000;
+    if (max_slider <= 0)
+        max_slider = 10000;
     // This can happen for example if global rate limit is lower
     // than torrent rate limit.
     if (val > max_slider)

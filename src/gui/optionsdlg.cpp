@@ -58,8 +58,10 @@
 #include "base/torrentfileguard.h"
 #include "base/unicodestrings.h"
 #include "base/utils/fs.h"
+#include "base/utils/random.h"
 #include "addnewtorrentdialog.h"
 #include "advancedsettings.h"
+#include "banlistoptions.h"
 #include "guiiconprovider.h"
 #include "scanfoldersdelegate.h"
 
@@ -80,8 +82,8 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     m_ui->tabSelection->item(TAB_UI)->setIcon(GuiIconProvider::instance()->getIcon("preferences-desktop"));
     m_ui->tabSelection->item(TAB_BITTORRENT)->setIcon(GuiIconProvider::instance()->getIcon("preferences-system-network"));
     m_ui->tabSelection->item(TAB_CONNECTION)->setIcon(GuiIconProvider::instance()->getIcon("network-wired"));
-    m_ui->tabSelection->item(TAB_DOWNLOADS)->setIcon(GuiIconProvider::instance()->getIcon("download"));
-    m_ui->tabSelection->item(TAB_SPEED)->setIcon(GuiIconProvider::instance()->getIcon("chronometer"));
+    m_ui->tabSelection->item(TAB_DOWNLOADS)->setIcon(GuiIconProvider::instance()->getIcon("folder-download"));
+    m_ui->tabSelection->item(TAB_SPEED)->setIcon(GuiIconProvider::instance()->getIcon("speedometer", "chronometer"));
 #ifndef DISABLE_WEBUI
     m_ui->tabSelection->item(TAB_WEBUI)->setIcon(GuiIconProvider::instance()->getIcon("network-server"));
 #else
@@ -121,11 +123,7 @@ OptionsDialog::OptionsDialog(QWidget *parent)
         }
     }
 
-#ifndef QBT_USES_QT5
-    m_ui->scanFoldersView->header()->setResizeMode(QHeaderView::ResizeToContents);
-#else
     m_ui->scanFoldersView->header()->setSectionResizeMode(QHeaderView::ResizeToContents);
-#endif
     m_ui->scanFoldersView->setModel(ScanFoldersModel::instance());
     m_ui->scanFoldersView->setItemDelegate(new ScanFoldersDelegate(this, m_ui->scanFoldersView));
     connect(ScanFoldersModel::instance(), SIGNAL(dataChanged(QModelIndex, QModelIndex)), this, SLOT(enableApplyButton()));
@@ -307,6 +305,9 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     connect(m_ui->textProxyPassword, SIGNAL(textChanged(QString)), this, SLOT(enableApplyButton()));
     // Misc tab
     connect(m_ui->checkIPFilter, SIGNAL(toggled(bool)), this, SLOT(enableApplyButton()));
+    connect(m_ui->checkIPFilter, SIGNAL(toggled(bool)), m_ui->textFilterPath, SLOT(setEnabled(bool)));
+    connect(m_ui->checkIPFilter, SIGNAL(toggled(bool)), m_ui->browseFilterButton, SLOT(setEnabled(bool)));
+    connect(m_ui->checkIPFilter, SIGNAL(toggled(bool)), m_ui->IpFilterRefreshBtn, SLOT(setEnabled(bool)));
     connect(m_ui->checkIpFilterTrackers, SIGNAL(toggled(bool)), SLOT(enableApplyButton()));
     connect(m_ui->textFilterPath, SIGNAL(textChanged(QString)), this, SLOT(enableApplyButton()));
     connect(m_ui->checkEnableQueueing, SIGNAL(toggled(bool)), this, SLOT(enableApplyButton()));
@@ -845,16 +846,21 @@ void OptionsDialog::loadOptions()
     case ProxyType::SOCKS4:
         m_ui->comboProxyType->setCurrentIndex(1);
         break;
+
     case ProxyType::SOCKS5_PW:
         useProxyAuth = true;
+        // fallthrough
     case ProxyType::SOCKS5:
         m_ui->comboProxyType->setCurrentIndex(2);
         break;
+
     case ProxyType::HTTP_PW:
         useProxyAuth = true;
+        // fallthrough
     case ProxyType::HTTP:
         m_ui->comboProxyType->setCurrentIndex(3);
         break;
+
     default:
         m_ui->comboProxyType->setCurrentIndex(0);
     }
@@ -867,11 +873,14 @@ void OptionsDialog::loadOptions()
     m_ui->checkProxyPeerConnecs->setChecked(session->isProxyPeerConnectionsEnabled());
     m_ui->checkForceProxy->setChecked(session->isForceProxyEnabled());
     m_ui->isProxyOnlyForTorrents->setChecked(proxyConfigManager->isProxyOnlyForTorrents());
-    enableProxy(m_ui->comboProxyType->currentIndex() > 0);
+    enableProxy(m_ui->comboProxyType->currentIndex());
 
     m_ui->checkIPFilter->setChecked(session->isIPFilteringEnabled());
-    m_ui->checkIpFilterTrackers->setChecked(session->isTrackerFilteringEnabled());
+    m_ui->textFilterPath->setEnabled(m_ui->checkIPFilter->isChecked());
     m_ui->textFilterPath->setText(Utils::Fs::toNativePath(session->IPFilterFile()));
+    m_ui->browseFilterButton->setEnabled(m_ui->checkIPFilter->isChecked());
+    m_ui->IpFilterRefreshBtn->setEnabled(m_ui->checkIPFilter->isChecked());
+    m_ui->checkIpFilterTrackers->setChecked(session->isTrackerFilteringEnabled());
     // End Connection preferences
 
     // Speed preferences
@@ -973,8 +982,8 @@ void OptionsDialog::loadOptions()
     m_ui->spinWebUiPort->setValue(pref->getWebUiPort());
     m_ui->checkWebUIUPnP->setChecked(pref->useUPnPForWebUIPort());
     m_ui->checkWebUiHttps->setChecked(pref->isWebUiHttpsEnabled());
-    setSslCertificate(pref->getWebUiHttpsCertificate(), false);
-    setSslKey(pref->getWebUiHttpsKey(), false);
+    setSslCertificate(pref->getWebUiHttpsCertificate());
+    setSslKey(pref->getWebUiHttpsKey());
     m_ui->textWebUiUsername->setText(pref->getWebUiUsername());
     m_ui->textWebUiPassword->setText(pref->getWebUiPassword());
     m_ui->checkBypassLocalAuth->setChecked(!pref->isWebUiLocalAuthEnabled());
@@ -997,7 +1006,7 @@ int OptionsDialog::getPort() const
 void OptionsDialog::on_randomButton_clicked()
 {
     // Range [1024: 65535]
-    m_ui->spinPort->setValue(rand() % 64512 + 1024);
+    m_ui->spinPort->setValue(Utils::Random::rand(1024, 65535));
 }
 
 int OptionsDialog::getEncryptionSetting() const
@@ -1294,7 +1303,10 @@ void OptionsDialog::setLocale(const QString &localeStr)
     }
     else {
         QLocale locale(localeStr);
-        name = locale.name();
+        if (locale.language() == QLocale::Uzbek)
+            name = "uz@Latn";
+        else
+            name = locale.name();
     }
     // Attempt to find exact match
     int index = m_ui->comboI18n->findData(name, Qt::UserRole);
@@ -1308,7 +1320,7 @@ void OptionsDialog::setLocale(const QString &localeStr)
     }
     if (index < 0) {
         // Unrecognized, use US English
-        index = m_ui->comboI18n->findData(QLocale("en").name(), Qt::UserRole);
+        index = m_ui->comboI18n->findData("en", Qt::UserRole);
         Q_ASSERT(index >= 0);
     }
     m_ui->comboI18n->setCurrentIndex(index);
@@ -1503,26 +1515,32 @@ void OptionsDialog::showConnectionTab()
 
 void OptionsDialog::on_btnWebUiCrt_clicked()
 {
-    QString filename = QFileDialog::getOpenFileName(this, QString(), QString(), tr("SSL Certificate") + QString(" (*.crt *.pem)"));
-    if (filename.isNull())
+    const QString filename = QFileDialog::getOpenFileName(this, tr("Import SSL certificate"), QString(), tr("SSL Certificate") + QLatin1String(" (*.crt *.pem)"));
+    if (filename.isEmpty())
         return;
-    QFile file(filename);
-    if (file.open(QIODevice::ReadOnly)) {
-        setSslCertificate(file.readAll());
-        file.close();
-    }
+
+    QFile cert(filename);
+    if (!cert.open(QIODevice::ReadOnly))
+        return;
+
+    bool success = setSslCertificate(cert.read(1024 * 1024));
+    if (!success)
+        QMessageBox::warning(this, tr("Invalid certificate"), tr("This is not a valid SSL certificate."));
 }
 
 void OptionsDialog::on_btnWebUiKey_clicked()
 {
-    QString filename = QFileDialog::getOpenFileName(this, QString(), QString(), tr("SSL Key") + QString(" (*.key *.pem)"));
-    if (filename.isNull())
+    const QString filename = QFileDialog::getOpenFileName(this, tr("Import SSL key"), QString(), tr("SSL key") + QLatin1String(" (*.key *.pem)"));
+    if (filename.isEmpty())
         return;
-    QFile file(filename);
-    if (file.open(QIODevice::ReadOnly)) {
-        setSslKey(file.readAll());
-        file.close();
-    }
+
+    QFile key(filename);
+    if (!key.open(QIODevice::ReadOnly))
+        return;
+
+    bool success = setSslKey(key.read(1024 * 1024));
+    if (!success)
+        QMessageBox::warning(this, tr("Invalid key"), tr("This is not a valid SSL key."));
 }
 
 void OptionsDialog::on_registerDNSBtn_clicked()
@@ -1567,19 +1585,23 @@ QString OptionsDialog::languageToLocalizedString(const QLocale &locale)
     case QLocale::French: return QString::fromUtf8(C_LOCALE_FRENCH);
     case QLocale::German: return QString::fromUtf8(C_LOCALE_GERMAN);
     case QLocale::Hungarian: return QString::fromUtf8(C_LOCALE_HUNGARIAN);
+    case QLocale::Icelandic: return QString::fromUtf8(C_LOCALE_ICELANDIC);
     case QLocale::Indonesian: return QString::fromUtf8(C_LOCALE_INDONESIAN);
     case QLocale::Italian: return QString::fromUtf8(C_LOCALE_ITALIAN);
     case QLocale::Dutch: return QString::fromUtf8(C_LOCALE_DUTCH);
     case QLocale::Spanish: return QString::fromUtf8(C_LOCALE_SPANISH);
     case QLocale::Catalan: return QString::fromUtf8(C_LOCALE_CATALAN);
     case QLocale::Galician: return QString::fromUtf8(C_LOCALE_GALICIAN);
+    case QLocale::Occitan: return QString::fromUtf8(C_LOCALE_OCCITAN);
     case QLocale::Portuguese: {
         if (locale.country() == QLocale::Brazil)
             return QString::fromUtf8(C_LOCALE_PORTUGUESE_BRAZIL);
         return QString::fromUtf8(C_LOCALE_PORTUGUESE);
     }
     case QLocale::Polish: return QString::fromUtf8(C_LOCALE_POLISH);
+    case QLocale::Latvian: return QString::fromUtf8(C_LOCALE_LATVIAN);
     case QLocale::Lithuanian: return QString::fromUtf8(C_LOCALE_LITHUANIAN);
+    case QLocale::Malay: return QString::fromUtf8(C_LOCALE_MALAY);
     case QLocale::Czech: return QString::fromUtf8(C_LOCALE_CZECH);
     case QLocale::Slovak: return QString::fromUtf8(C_LOCALE_SLOVAK);
     case QLocale::Slovenian: return QString::fromUtf8(C_LOCALE_SLOVENIAN);
@@ -1595,6 +1617,7 @@ QString OptionsDialog::languageToLocalizedString(const QLocale &locale)
     case QLocale::Danish: return QString::fromUtf8(C_LOCALE_DANISH);
     case QLocale::Bulgarian: return QString::fromUtf8(C_LOCALE_BULGARIAN);
     case QLocale::Ukrainian: return QString::fromUtf8(C_LOCALE_UKRAINIAN);
+    case QLocale::Uzbek: return QString::fromUtf8(C_LOCALE_UZBEK);
     case QLocale::Russian: return QString::fromUtf8(C_LOCALE_RUSSIAN);
     case QLocale::Japanese: return QString::fromUtf8(C_LOCALE_JAPANESE);
     case QLocale::Hebrew: return QString::fromUtf8(C_LOCALE_HEBREW);
@@ -1625,35 +1648,42 @@ QString OptionsDialog::languageToLocalizedString(const QLocale &locale)
     }
 }
 
-void OptionsDialog::setSslKey(const QByteArray &key, bool interactive)
+bool OptionsDialog::setSslKey(const QByteArray &key)
 {
 #ifndef QT_NO_OPENSSL
-    if (!key.isEmpty() && !QSslKey(key, QSsl::Rsa).isNull()) {
-        m_ui->lblSslKeyStatus->setPixmap(QPixmap(":/icons/oxygen/security-high.png").scaledToHeight(20, Qt::SmoothTransformation));
+    // try different formats
+    const bool isKeyValid = (!QSslKey(key, QSsl::Rsa).isNull() || !QSslKey(key, QSsl::Ec).isNull());
+    if (isKeyValid) {
+        m_ui->lblSslKeyStatus->setPixmap(QPixmap(":/icons/qbt-theme/security-high.png").scaledToHeight(20, Qt::SmoothTransformation));
         m_sslKey = key;
     }
     else {
-        m_ui->lblSslKeyStatus->setPixmap(QPixmap(":/icons/oxygen/security-low.png").scaledToHeight(20, Qt::SmoothTransformation));
+        m_ui->lblSslKeyStatus->setPixmap(QPixmap(":/icons/qbt-theme/security-low.png").scaledToHeight(20, Qt::SmoothTransformation));
         m_sslKey.clear();
-        if (interactive)
-            QMessageBox::warning(this, tr("Invalid key"), tr("This is not a valid SSL key."));
     }
+    return isKeyValid;
+#else
+    Q_UNUSED(key);
+    return false;
 #endif
 }
 
-void OptionsDialog::setSslCertificate(const QByteArray &cert, bool interactive)
+bool OptionsDialog::setSslCertificate(const QByteArray &cert)
 {
 #ifndef QT_NO_OPENSSL
-    if (!cert.isEmpty() && !QSslCertificate(cert).isNull()) {
-        m_ui->lblSslCertStatus->setPixmap(QPixmap(":/icons/oxygen/security-high.png").scaledToHeight(20, Qt::SmoothTransformation));
+    const bool isCertValid = !QSslCertificate(cert).isNull();
+    if (isCertValid) {
+        m_ui->lblSslCertStatus->setPixmap(QPixmap(":/icons/qbt-theme/security-high.png").scaledToHeight(20, Qt::SmoothTransformation));
         m_sslCert = cert;
     }
     else {
-        m_ui->lblSslCertStatus->setPixmap(QPixmap(":/icons/oxygen/security-low.png").scaledToHeight(20, Qt::SmoothTransformation));
+        m_ui->lblSslCertStatus->setPixmap(QPixmap(":/icons/qbt-theme/security-low.png").scaledToHeight(20, Qt::SmoothTransformation));
         m_sslCert.clear();
-        if (interactive)
-            QMessageBox::warning(this, tr("Invalid certificate"), tr("This is not a valid SSL certificate."));
     }
+    return isCertValid;
+#else
+    Q_UNUSED(cert);
+    return false;
 #endif
 }
 
@@ -1677,4 +1707,11 @@ bool OptionsDialog::webUIAuthenticationOk()
         return false;
     }
     return true;
+}
+
+void OptionsDialog::on_banListButton_clicked()
+{
+    //have to call dialog window
+    BanListOptions bl(this);
+    bl.exec();
 }

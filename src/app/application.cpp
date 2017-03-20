@@ -114,9 +114,7 @@ Application::Application(const QString &id, int &argc, char **argv)
     setApplicationName("qBittorrent");
     initializeTranslation();
 #ifndef DISABLE_GUI
-#ifdef QBT_USES_QT5
     setAttribute(Qt::AA_UseHighDpiPixmaps, true);  // opt-in to the high DPI pixmap support
-#endif // QBT_USES_QT5
     setQuitOnLastWindowClosed(false);
 #ifdef Q_OS_WIN
     connect(this, SIGNAL(commitDataRequest(QSessionManager &)), this, SLOT(shutdownCleanup(QSessionManager &)), Qt::DirectConnection);
@@ -129,7 +127,7 @@ Application::Application(const QString &id, int &argc, char **argv)
     if (isFileLoggerEnabled())
         m_fileLogger = new FileLogger(fileLoggerPath(), isFileLoggerBackup(), fileLoggerMaxSize(), isFileLoggerDeleteOld(), fileLoggerAge(), static_cast<FileLogger::FileLogAgeType>(fileLoggerAgeType()));
 
-    Logger::instance()->addMessage(tr("qBittorrent %1 started", "qBittorrent v3.2.0alpha started").arg(VERSION));
+    Logger::instance()->addMessage(tr("qBittorrent %1 started", "qBittorrent v3.2.0alpha started").arg(QBT_VERSION));
 }
 
 #ifndef DISABLE_GUI
@@ -511,36 +509,24 @@ void Application::initializeTranslation()
 {
     Preferences* const pref = Preferences::instance();
     // Load translation
-    QString locale = pref->getLocale();
+    QString localeStr = pref->getLocale();
 
-    if (locale.isEmpty()) {
-        locale = QLocale::system().name();
-        pref->setLocale(locale);
-    }
+    if (m_qtTranslator.load(QString::fromUtf8("qtbase_") + localeStr, QLibraryInfo::location(QLibraryInfo::TranslationsPath)) ||
+        m_qtTranslator.load(QString::fromUtf8("qt_") + localeStr, QLibraryInfo::location(QLibraryInfo::TranslationsPath)))
+            qDebug("Qt %s locale recognized, using translation.", qPrintable(localeStr));
+    else
+        qDebug("Qt %s locale unrecognized, using default (en).", qPrintable(localeStr));
 
-    if (m_qtTranslator.load(
-#ifdef QBT_USES_QT5
-            QString::fromUtf8("qtbase_") + locale, QLibraryInfo::location(QLibraryInfo::TranslationsPath)) ||
-        m_qtTranslator.load(
-#endif
-            QString::fromUtf8("qt_") + locale, QLibraryInfo::location(QLibraryInfo::TranslationsPath))) {
-            qDebug("Qt %s locale recognized, using translation.", qPrintable(locale));
-    }
-    else {
-        qDebug("Qt %s locale unrecognized, using default (en).", qPrintable(locale));
-    }
     installTranslator(&m_qtTranslator);
 
-    if (m_translator.load(QString::fromUtf8(":/lang/qbittorrent_") + locale)) {
-        qDebug("%s locale recognized, using translation.", qPrintable(locale));
-    }
-    else {
-        qDebug("%s locale unrecognized, using default (en).", qPrintable(locale));
-    }
+    if (m_translator.load(QString::fromUtf8(":/lang/qbittorrent_") + localeStr))
+        qDebug("%s locale recognized, using translation.", qPrintable(localeStr));
+    else
+        qDebug("%s locale unrecognized, using default (en).", qPrintable(localeStr));
     installTranslator(&m_translator);
 
 #ifndef DISABLE_GUI
-    if (locale.startsWith("ar") || locale.startsWith("he")) {
+    if (localeStr.startsWith("ar") || localeStr.startsWith("he")) {
         qDebug("Right to Left mode");
         setLayoutDirection(Qt::RightToLeft);
     }
@@ -629,6 +615,7 @@ void Application::cleanup()
     delete m_fileLogger;
     Logger::freeInstance();
     IconProvider::freeInstance();
+    Utils::Fs::removeDirRecursive(Utils::Fs::tempPath());
 
 #ifndef DISABLE_GUI
 #ifdef Q_OS_WIN
