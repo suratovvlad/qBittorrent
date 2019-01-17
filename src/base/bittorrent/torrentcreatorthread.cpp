@@ -30,12 +30,10 @@
 
 #include <fstream>
 
-#include <boost/bind.hpp>
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/storage.hpp>
 #include <libtorrent/torrent_info.hpp>
-#include <libtorrent/version.hpp>
 
 #include <QDirIterator>
 #include <QFile>
@@ -108,7 +106,7 @@ void TorrentCreatorThread::run()
             std::sort(dirs.begin(), dirs.end(), Utils::String::naturalLessThan<Qt::CaseInsensitive>);
 
             QStringList fileNames;
-            QHash<QString, boost::int64_t> fileSizeMap;
+            QHash<QString, qint64> fileSizeMap;
 
             for (const auto &dir : asConst(dirs)) {
                 QStringList tmpNames;  // natural sort files within each dir
@@ -132,13 +130,8 @@ void TorrentCreatorThread::run()
 
         if (isInterruptionRequested()) return;
 
-#if LIBTORRENT_VERSION_NUM < 10100
-        libt::create_torrent newTorrent(fs, m_params.pieceSize, -1
-            , (m_params.isAlignmentOptimized ? libt::create_torrent::optimize : 0));
-#else
         libt::create_torrent newTorrent(fs, m_params.pieceSize, -1
             , (m_params.isAlignmentOptimized ? libt::create_torrent::optimize_alignment : 0));
-#endif
 
         // Add url seeds
         for (QString seed : asConst(m_params.urlSeeds)) {
@@ -209,11 +202,6 @@ int TorrentCreatorThread::calculateTotalPieces(const QString &inputPath, const i
     libt::file_storage fs;
     libt::add_files(fs, Utils::Fs::toNativePath(inputPath).toStdString(), fileFilter);
 
-#if LIBTORRENT_VERSION_NUM < 10100
-    return libt::create_torrent(fs, pieceSize, -1
-        , (isAlignmentOptimized ? libt::create_torrent::optimize : 0)).num_pieces();
-#else
     return libt::create_torrent(fs, pieceSize, -1
         , (isAlignmentOptimized ? libt::create_torrent::optimize_alignment : 0)).num_pieces();
-#endif
 }
