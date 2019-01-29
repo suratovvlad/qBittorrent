@@ -2777,7 +2777,7 @@ int Session::diskCacheSize() const
 {
     int size = m_diskCacheSize;
     // These macros may not be available on compilers other than MSVC and GCC
-#if defined(__x86_64__) || defined(_M_X64)
+#ifdef QBT_APP_64BIT
     size = qMin(size, 4096);  // 4GiB
 #else
     // When build as 32bit binary, set the maximum at less than 2GB to prevent crashes
@@ -2789,7 +2789,7 @@ int Session::diskCacheSize() const
 
 void Session::setDiskCacheSize(int size)
 {
-#if defined(__x86_64__) || defined(_M_X64)
+#ifdef QBT_APP_64BIT
     size = qMin(size, 4096);  // 4GiB
 #else
     // allocate 1536MiB and leave 512MiB to the rest of program data in RAM
@@ -3451,12 +3451,6 @@ void Session::handleTorrentTrackerReply(TorrentHandle *const torrent, const QStr
 void Session::handleTorrentTrackerError(TorrentHandle *const torrent, const QString &trackerUrl)
 {
     emit trackerError(torrent, trackerUrl);
-}
-
-void Session::handleTorrentTrackerAuthenticationRequired(TorrentHandle *const torrent, const QString &trackerUrl)
-{
-    Q_UNUSED(trackerUrl);
-    emit trackerAuthenticationRequired(torrent);
 }
 
 void Session::handleTorrentTrackerWarning(TorrentHandle *const torrent, const QString &trackerUrl)
