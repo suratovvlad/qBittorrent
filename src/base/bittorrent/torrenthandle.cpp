@@ -841,11 +841,10 @@ bool TorrentHandle::hasError() const
 bool TorrentHandle::hasFilteredPieces() const
 {
     const std::vector<int> pp = m_nativeHandle.piece_priorities();
-
-    for (const int priority : pp)
-        if (priority == 0) return true;
-
-    return false;
+    return std::any_of(pp.cbegin(), pp.cend(), [](const int priority)
+    {
+        return (priority == 0);
+    });
 }
 
 int TorrentHandle::queuePosition() const
@@ -1225,7 +1224,7 @@ void TorrentHandle::forceRecheck()
 
     if (isPaused()) {
         m_nativeHandle.stop_when_ready(true);
-        resume_impl(true, true);
+        resume_impl(false);
     }
 }
 
@@ -1304,10 +1303,10 @@ void TorrentHandle::pause()
 
 void TorrentHandle::resume(bool forced)
 {
-    resume_impl(forced, false);
+    resume_impl(forced);
 }
 
-void TorrentHandle::resume_impl(bool forced, bool uploadMode)
+void TorrentHandle::resume_impl(bool forced)
 {
     if (hasError())
         m_nativeHandle.clear_error();
@@ -1318,7 +1317,6 @@ void TorrentHandle::resume_impl(bool forced, bool uploadMode)
     }
 
     m_nativeHandle.auto_managed(!forced);
-    m_nativeHandle.set_upload_mode(uploadMode);
     m_nativeHandle.resume();
 }
 

@@ -36,7 +36,6 @@
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QThread>
-#include <QTimer>
 
 #include "base/bittorrent/filepriority.h"
 #include "base/bittorrent/session.h"
@@ -49,7 +48,6 @@
 #include "downloadedpiecesbar.h"
 #include "guiiconprovider.h"
 #include "lineedit.h"
-#include "mainwindow.h"
 #include "peerlistwidget.h"
 #include "pieceavailabilitybar.h"
 #include "proplistdelegate.h"
@@ -59,7 +57,6 @@
 #include "torrentcontentfiltermodel.h"
 #include "torrentcontentmodel.h"
 #include "trackerlistwidget.h"
-#include "transferlistwidget.h"
 #include "utils.h"
 
 #include "ui_propertieswidget.h"
@@ -68,11 +65,9 @@
 #include "macutilities.h"
 #endif
 
-PropertiesWidget::PropertiesWidget(QWidget *parent, MainWindow *mainWindow, TransferListWidget *transferList)
+PropertiesWidget::PropertiesWidget(QWidget *parent)
     : QWidget(parent)
     , m_ui(new Ui::PropertiesWidget())
-    , m_transferList(transferList)
-    , m_mainWindow(mainWindow)
     , m_torrent(nullptr)
 {
     m_ui->setupUi(this);
@@ -103,7 +98,6 @@ PropertiesWidget::PropertiesWidget(QWidget *parent, MainWindow *mainWindow, Tran
     connect(m_ui->filesList, &QAbstractItemView::doubleClicked, this, &PropertiesWidget::openDoubleClickedFile);
     connect(m_propListModel, &TorrentContentFilterModel::filteredFilesChanged, this, &PropertiesWidget::filteredFilesChanged);
     connect(m_ui->listWebSeeds, &QWidget::customContextMenuRequested, this, &PropertiesWidget::displayWebSeedListMenu);
-    connect(transferList, &TransferListWidget::currentTorrentChanged, this, &PropertiesWidget::loadTorrentInfos);
     connect(m_propListDelegate, &PropListDelegate::filteredFilesChanged, this, &PropertiesWidget::filteredFilesChanged);
     connect(m_ui->stackedProperties, &QStackedWidget::currentChanged, this, &PropertiesWidget::loadDynamicData);
     connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentSavePathChanged, this, &PropertiesWidget::updateSavePath);
@@ -149,10 +143,7 @@ PropertiesWidget::PropertiesWidget(QWidget *parent, MainWindow *mainWindow, Tran
     connect(m_tabBar, &PropTabBar::tabChanged, this, &PropertiesWidget::saveSettings);
     connect(m_tabBar, &PropTabBar::visibilityToggled, this, &PropertiesWidget::setVisibility);
     connect(m_tabBar, &PropTabBar::visibilityToggled, this, &PropertiesWidget::saveSettings);
-    // Dynamic data refresher
-    m_refreshTimer = new QTimer(this);
-    connect(m_refreshTimer, &QTimer::timeout, this, &PropertiesWidget::loadDynamicData);
-    m_refreshTimer->start(3000); // 3sec
+
     m_editHotkeyFile = new QShortcut(Qt::Key_F2, m_ui->filesList, nullptr, nullptr, Qt::WidgetShortcut);
     connect(m_editHotkeyFile, &QShortcut::activated, this, &PropertiesWidget::renameSelectedFile);
     m_editHotkeyWeb = new QShortcut(Qt::Key_F2, m_ui->listWebSeeds, nullptr, nullptr, Qt::WidgetShortcut);
@@ -170,7 +161,6 @@ PropertiesWidget::PropertiesWidget(QWidget *parent, MainWindow *mainWindow, Tran
 PropertiesWidget::~PropertiesWidget()
 {
     qDebug() << Q_FUNC_INFO << "ENTER";
-    delete m_refreshTimer;
     delete m_trackerList;
     delete m_peerList;
     delete m_speedWidget;
@@ -394,7 +384,7 @@ void PropertiesWidget::reloadPreferences()
 void PropertiesWidget::loadDynamicData()
 {
     // Refresh only if the torrent handle is valid and visible
-    if (!m_torrent || (m_mainWindow->currentTabWidget() != m_transferList) || (m_state != VISIBLE)) return;
+    if (!m_torrent || (m_state != VISIBLE)) return;
 
     // Transfer infos
     switch (m_ui->stackedProperties->currentIndex()) {
@@ -586,15 +576,15 @@ void PropertiesWidget::displayFilesListMenu(const QPoint &)
     const QModelIndexList selectedRows = m_ui->filesList->selectionModel()->selectedRows(0);
     if (selectedRows.empty()) return;
 
-    QMenu myFilesLlistMenu;
+    QMenu myFilesListMenu;
     QAction *actOpen = nullptr;
     QAction *actOpenContainingFolder = nullptr;
     QAction *actRename = nullptr;
     if (selectedRows.size() == 1) {
-        actOpen = myFilesLlistMenu.addAction(GuiIconProvider::instance()->getIcon("folder-documents"), tr("Open"));
-        actOpenContainingFolder = myFilesLlistMenu.addAction(GuiIconProvider::instance()->getIcon("inode-directory"), tr("Open Containing Folder"));
-        actRename = myFilesLlistMenu.addAction(GuiIconProvider::instance()->getIcon("edit-rename"), tr("Rename..."));
-        myFilesLlistMenu.addSeparator();
+        actOpen = myFilesListMenu.addAction(GuiIconProvider::instance()->getIcon("folder-documents"), tr("Open"));
+        actOpenContainingFolder = myFilesListMenu.addAction(GuiIconProvider::instance()->getIcon("inode-directory"), tr("Open Containing Folder"));
+        actRename = myFilesListMenu.addAction(GuiIconProvider::instance()->getIcon("edit-rename"), tr("Rename..."));
+        myFilesListMenu.addSeparator();
     }
     QMenu subMenu;
     if (!m_torrent->isSeed()) {
@@ -603,15 +593,22 @@ void PropertiesWidget::displayFilesListMenu(const QPoint &)
         subMenu.addAction(m_ui->actionNormal);
         subMenu.addAction(m_ui->actionHigh);
         subMenu.addAction(m_ui->actionMaximum);
-        myFilesLlistMenu.addMenu(&subMenu);
+        myFilesListMenu.addMenu(&subMenu);
     }
-    // Call menu
-    const QAction *act = myFilesLlistMenu.exec(QCursor::pos());
-    // The selected torrent might have disappeared during exec()
-    // from the current view thus leaving invalid indices.
-    const QModelIndex index = *(selectedRows.begin());
-    if (!index.isValid() || !act) return;
 
+    // The selected torrent might have disappeared during exec()
+    // so we just close menu when an appropriate model is reset
+    connect(m_ui->filesList->model(), &QAbstractItemModel::modelAboutToBeReset
+            , &myFilesListMenu, [&myFilesListMenu]()
+    {
+        myFilesListMenu.setActiveAction(nullptr);
+        myFilesListMenu.close();
+    });
+    // Call menu
+    const QAction *act = myFilesListMenu.exec(QCursor::pos());
+    if (!act) return;
+
+    const QModelIndex index = selectedRows[0];
     if (act == actOpen) {
         openDoubleClickedFile(index);
     }
