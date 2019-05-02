@@ -41,6 +41,7 @@
 
 #include <QDebug>
 #include <QThread>
+#include <QFile>
 
 #ifndef DISABLE_GUI
 // GUI-only includes
@@ -117,7 +118,7 @@ void showSplashScreen();
 #endif  // DISABLE_GUI
 
 namespace {
-    bool setDarkTheme(const QScopedPointer<Application>& app)
+    auto setDarkTheme = [] (const auto& app) -> auto
     {
         // Set dark theme
         QFile file = {":/qdarkstyle/style.qss"};
@@ -135,7 +136,7 @@ namespace {
         app->setPalette(palette);
 
         return true;
-    }
+    };
 }
 
 // Main
