@@ -29,6 +29,8 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
+#include <boost/circular_buffer.hpp>
+
 #include <QObject>
 #include <QReadWriteLock>
 #include <QString>
@@ -79,7 +81,7 @@ public:
     static Logger *instance();
 
     void addMessage(const QString &message, const Log::MsgType &type = Log::NORMAL);
-    void addPeer(const QString &ip, bool blocked, const QString &reason = QString());
+    void addPeer(const QString &ip, bool blocked, const QString &reason = {});
     QVector<Log::Msg> getMessages(int lastKnownId = -1) const;
     QVector<Log::Peer> getPeers(int lastKnownId = -1) const;
 
@@ -89,14 +91,14 @@ signals:
 
 private:
     Logger();
-    ~Logger();
+    ~Logger() = default;
 
     static Logger *m_instance;
-    QVector<Log::Msg> m_messages;
-    QVector<Log::Peer> m_peers;
+    boost::circular_buffer_space_optimized<Log::Msg> m_messages;
+    boost::circular_buffer_space_optimized<Log::Peer> m_peers;
     mutable QReadWriteLock m_lock;
-    int m_msgCounter;
-    int m_peerCounter;
+    int m_msgCounter = 0;
+    int m_peerCounter = 0;
 };
 
 // Helper function

@@ -30,7 +30,6 @@
 
 #include <QDateTime>
 #include <QHash>
-#include <QMap>
 #include <QObject>
 #include <QRegularExpression>
 #include <QSet>
@@ -120,13 +119,14 @@ private:
     bool validateHostHeader(const QStringList &domains) const;
 
     // Persistent data
-    QMap<QString, WebSession *> m_sessions;
+    QHash<QString, WebSession *> m_sessions;
 
     // Current data
     WebSession *m_currentSession = nullptr;
     Http::Request m_request;
     Http::Environment m_env;
     QMap<QString, QString> m_params;
+    const QString m_cacheID;
 
     const QRegularExpression m_apiPathPattern {(QLatin1String("^/api/v2/(?<scope>[A-Za-z_][A-Za-z_0-9]*)/(?<action>[A-Za-z_][A-Za-z_0-9]*)$"))};
 
@@ -140,7 +140,7 @@ private:
         QByteArray data;
         QDateTime lastModified;
     };
-    QMap<QString, TranslatedFile> m_translatedFiles;
+    QHash<QString, TranslatedFile> m_translatedFiles;
     QString m_currentLocale;
     QTranslator m_translator;
     bool m_translationFileLoaded = false;

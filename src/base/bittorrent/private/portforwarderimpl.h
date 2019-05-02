@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2010  Christophe Dumez <chris@qbittorrent.org>
+ * Copyright (C) 2019  Vladimir Golovnev <glassez@yandex.ru>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,52 +26,40 @@
  * exception statement from your version.
  */
 
-#ifndef BITTORRENT_TORRENTCREATORTHREAD_H
-#define BITTORRENT_TORRENTCREATORTHREAD_H
+#pragma once
 
-#include <QStringList>
-#include <QThread>
+#include <vector>
+#include <QHash>
 
-namespace BitTorrent
+#include "base/net/portforwarder.h"
+#include "libtorrentfwd.h"
+
+#if (LIBTORRENT_VERSION_NUM < 10200)
+using LTPortMapping = int;
+#else
+#include <libtorrent/portmap.hpp>
+using LTPortMapping = lt::port_mapping_t;
+#endif
+
+class PortForwarderImpl : public Net::PortForwarder
 {
-    struct TorrentCreatorParams
-    {
-        bool isPrivate;
-        bool isAlignmentOptimized;
-        int pieceSize;
-        QString inputPath;
-        QString savePath;
-        QString comment;
-        QString source;
-        QStringList trackers;
-        QStringList urlSeeds;
-    };
+    Q_DISABLE_COPY(PortForwarderImpl)
 
-    class TorrentCreatorThread : public QThread
-    {
-        Q_OBJECT
+public:
+    explicit PortForwarderImpl(lt::session *provider, QObject *parent = nullptr);
+    ~PortForwarderImpl() override;
 
-    public:
-        TorrentCreatorThread(QObject *parent = nullptr);
-        ~TorrentCreatorThread();
+    bool isEnabled() const override;
+    void setEnabled(bool enabled) override;
 
-        void create(const TorrentCreatorParams &params);
+    void addPort(quint16 port) override;
+    void deletePort(quint16 port) override;
 
-        static int calculateTotalPieces(const QString &inputPath, int pieceSize, bool isAlignmentOptimized);
+private:
+    void start();
+    void stop();
 
-    protected:
-        void run();
-
-    signals:
-        void creationFailure(const QString &msg);
-        void creationSuccess(const QString &path, const QString &branchPath);
-        void updateProgress(int progress);
-
-    private:
-        void sendProgressSignal(int currentPieceIdx, int totalPieces);
-
-        TorrentCreatorParams m_params;
-    };
-}
-
-#endif // BITTORRENT_TORRENTCREATORTHREAD_H
+    bool m_active;
+    libtorrent::session *m_provider;
+    QHash<quint16, std::vector<LTPortMapping>> m_mappedPorts;
+};

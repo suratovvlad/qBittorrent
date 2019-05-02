@@ -32,7 +32,6 @@
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QMenu>
-#include <QSignalMapper>
 #include <QTimer>
 
 #include <libtorrent/session_status.hpp>
@@ -72,6 +71,8 @@ SpeedWidget::SpeedWidget(PropertiesWidget *parent)
     m_periodCombobox->addItem(tr("5 Minutes"));
     m_periodCombobox->addItem(tr("30 Minutes"));
     m_periodCombobox->addItem(tr("6 Hours"));
+    m_periodCombobox->addItem(tr("12 Hours"));
+    m_periodCombobox->addItem(tr("24 Hours"));
 
     connect(m_periodCombobox, static_cast<void (QComboBox::*)(int)>(&QComboBox::currentIndexChanged)
         , this, &SpeedWidget::onPeriodChange);
@@ -89,18 +90,13 @@ SpeedWidget::SpeedWidget(PropertiesWidget *parent)
     m_graphsMenu->addAction(tr("Tracker Download"));
 
     m_graphsMenuActions = m_graphsMenu->actions();
-    m_graphsSignalMapper = new QSignalMapper(this);
 
     for (int id = SpeedPlotView::UP; id < SpeedPlotView::NB_GRAPHS; ++id) {
         QAction *action = m_graphsMenuActions.at(id);
         action->setCheckable(true);
         action->setChecked(true);
-        connect(action, &QAction::changed, m_graphsSignalMapper
-            , static_cast<void (QSignalMapper::*)()>(&QSignalMapper::map));
-        m_graphsSignalMapper->setMapping(action, id);
+        connect(action, &QAction::changed, this, [this, id]() { onGraphChange(id); });
     }
-    connect(m_graphsSignalMapper, static_cast<void (QSignalMapper::*)(int)>(&QSignalMapper::mapped)
-        , this, &SpeedWidget::onGraphChange);
 
     m_graphsButton = new ComboBoxMenuButton(this, m_graphsMenu);
     m_graphsButton->addItem(tr("Select Graphs"));
@@ -154,7 +150,7 @@ void SpeedWidget::update()
 
 void SpeedWidget::onPeriodChange(int period)
 {
-    m_plot->setViewableLastPoints(static_cast<SpeedPlotView::TimePeriod>(period));
+    m_plot->setPeriod(static_cast<SpeedPlotView::TimePeriod>(period));
 }
 
 void SpeedWidget::onGraphChange(int id)

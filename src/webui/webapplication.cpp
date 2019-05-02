@@ -94,7 +94,7 @@ namespace
     inline QUrl urlFromHostHeader(const QString &hostHeader)
     {
         if (!hostHeader.contains(QLatin1String("://")))
-            return QUrl(QLatin1String("http://") + hostHeader);
+            return {QLatin1String("http://") + hostHeader};
         return hostHeader;
     }
 
@@ -117,6 +117,7 @@ namespace
 
 WebApplication::WebApplication(QObject *parent)
     : QObject(parent)
+    , m_cacheID {QString::number(Utils::Random::rand(), 36)}
 {
     registerAPIController(QLatin1String("app"), new AppController(this, this));
     registerAPIController(QLatin1String("auth"), new AuthController(this, this));
@@ -156,9 +157,7 @@ void WebApplication::sendWebUIFile()
     const QString path {
         (request().path != QLatin1String("/")
                 ? request().path
-                : (session()
-                   ? QLatin1String("/index.html")
-                   : QLatin1String("/login.html")))
+                : QLatin1String("/index.html"))
     };
 
     QString localPath {
@@ -227,7 +226,7 @@ void WebApplication::translateDocument(QString &data)
         }
 
         data.replace(QLatin1String("${LANG}"), m_currentLocale.left(2));
-        data.replace(QLatin1String("${VERSION}"), QBT_VERSION);
+        data.replace(QLatin1String("${CACHEID}"), m_cacheID);
     }
 }
 
@@ -509,13 +508,9 @@ QString WebApplication::generateSid() const
     QString sid;
 
     do {
-        const size_t size = 6;
-        quint32 tmp[size];
-
-        for (size_t i = 0; i < size; ++i)
-            tmp[i] = Utils::Random::rand();
-
-        sid = QByteArray::fromRawData(reinterpret_cast<const char *>(tmp), sizeof(quint32) * size).toBase64();
+        const quint32 tmp[] = {Utils::Random::rand(), Utils::Random::rand(), Utils::Random::rand()
+                , Utils::Random::rand(), Utils::Random::rand(), Utils::Random::rand()};
+        sid = QByteArray::fromRawData(reinterpret_cast<const char *>(tmp), sizeof(tmp)).toBase64();
     }
     while (m_sessions.contains(sid));
 
@@ -542,7 +537,7 @@ void WebApplication::sessionStart()
 
     // remove outdated sessions
     const qint64 now = QDateTime::currentMSecsSinceEpoch() / 1000;
-    const QMap<QString, WebSession *> sessionsCopy {m_sessions};
+    const QHash<QString, WebSession *> sessionsCopy {m_sessions};
     for (const auto session : sessionsCopy) {
         if ((now - session->timestamp()) > INACTIVE_TIME)
             delete m_sessions.take(session->id());
@@ -634,19 +629,7 @@ bool WebApplication::validateHostHeader(const QStringList &domains) const
     }
 
     // try matching host header with local address
-#if (QT_VERSION >= QT_VERSION_CHECK(5, 8, 0))
     const bool sameAddr = m_env.localAddress.isEqual(QHostAddress(requestHost));
-#else
-    const auto equal = [](const Q_IPV6ADDR &l, const Q_IPV6ADDR &r) -> bool
-    {
-        for (int i = 0; i < 16; ++i) {
-            if (l[i] != r[i])
-                return false;
-        }
-        return true;
-    };
-    const bool sameAddr = equal(m_env.localAddress.toIPv6Address(), QHostAddress(requestHost).toIPv6Address());
-#endif
 
     if (sameAddr)
         return true;
