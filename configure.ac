@@ -204,6 +204,11 @@ PKG_CHECK_MODULES(zlib,
                  [CXXFLAGS="$zlib_CFLAGS $CXXFLAGS"
                  LIBS="$zlib_LIBS $LIBS"])
 
+PKG_CHECK_MODULES(libqdark,
+                 [libqdark >= 0.5.2],
+                 [CXXFLAGS="$libqdark_CFLAGS $CXXFLAGS"
+                 LIBS="$libqdark_LIBS $LIBS"])
+
 # Check if already in >= C++11 mode because of the flags returned by one of the above packages
 AC_MSG_CHECKING([if compiler is using C++11 or later mode])
 AC_COMPILE_IFELSE([DETECT_CPP11_PROGRAM()],
@@ -211,7 +216,7 @@ AC_COMPILE_IFELSE([DETECT_CPP11_PROGRAM()],
                    QBT_CXX11_FOUND="yes"],
                   [AC_MSG_RESULT([no])
                    QBT_CXX11_FOUND="no"])
-                  
+
 # In case of no, check if the compiler can support at least C++11
 # and if yes, enable it leaving a warning to the user
 AS_IF([test "x$QBT_CXX11_FOUND" = "xno"],
