@@ -44,7 +44,6 @@
 
 #include <QDebug>
 #include <QThread>
-#include <QFile>
 
 #ifndef DISABLE_GUI
 // GUI-only includes
@@ -192,12 +191,8 @@ int main(int argc, char *argv[])
             fprintf(stderr, "Couldn't set environment variable...\n");
 
 #ifndef DISABLE_GUI
-
-    if (!setDarkTheme(app))
-        qDebug() << "Can't start dark theme";
-
-    if (!userAgreesWithLegalNotice())
-        return EXIT_SUCCESS;
+        if (!userAgreesWithLegalNotice())
+            return EXIT_SUCCESS;
 
 #elif defined(Q_OS_WIN)
         if (_isatty(_fileno(stdin))
