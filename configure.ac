@@ -194,6 +194,11 @@ PKG_CHECK_MODULES(zlib,
                  [CXXFLAGS="$zlib_CFLAGS $CXXFLAGS"
                  LIBS="$zlib_LIBS $LIBS"])
 
+PKG_CHECK_MODULES(libqdark,
+                 [libqdark >= 0.5.2],
+                 [CXXFLAGS="$libqdark_CFLAGS $CXXFLAGS"
+                 LIBS="$libqdark_LIBS $LIBS"])
+
 # Check if already in >= C++17 mode because of the flags returned by one of the above packages
 TMP_CXXFLAGS="$CXXFLAGS"
 CXXFLAGS=""
