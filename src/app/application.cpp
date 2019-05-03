@@ -96,6 +96,8 @@
 #include "webui/webui.h"
 #endif
 
+#include <QDarkThemePlugin.h>
+
 namespace
 {
 #define SETTINGS_KEY(name) "Application/" name
@@ -635,6 +637,13 @@ int Application::exec(const QStringList &params)
 #else
     UIThemeManager::initInstance();
     m_window = new MainWindow;
+
+    // Enable Dark Theme
+    auto darkThemePlugin = std::unique_ptr<libqdark::QDarkThemePlugin>{ new libqdark::QDarkThemePlugin{} };
+    // Change links color
+    darkThemePlugin->changeLinksColor();
+    // Initialize Dark Theme plugin
+    darkThemePlugin->initialize(m_window);
 #endif // DISABLE_GUI
 
     m_running = true;

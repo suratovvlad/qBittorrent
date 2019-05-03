@@ -44,7 +44,6 @@
 
 #include <QDebug>
 #include <QThread>
-#include <QFile>
 
 #ifndef DISABLE_GUI
 // GUI-only includes
@@ -124,28 +123,6 @@ void showSplashScreen();
 void adjustFileDescriptorLimit();
 #endif
 
-namespace {
-    auto setDarkTheme = [] (const auto& app) -> auto
-    {
-        // Set dark theme
-        QFile file = {":/qdarkstyle/style.qss"};
-
-        if (!file.open(QIODevice::ReadOnly | QIODevice::Text)) {
-            return false;
-        }
-
-        app->setStyleSheet(file.readAll());
-        file.close();
-
-        auto palette = app->palette();
-        palette.setColor(QPalette::Active, QPalette::Base, QColor{ 100, 100, 100 });
-        palette.setColor(QPalette::Link, QColor{ "#00bfff" });
-        app->setPalette(palette);
-
-        return true;
-    };
-}
-
 // Main
 int main(int argc, char *argv[])
 {
@@ -208,12 +185,8 @@ int main(int argc, char *argv[])
         if (firstTimeUser)
         {
 #ifndef DISABLE_GUI
-
-            if (!setDarkTheme(app))
-                qDebug() << "Can't start dark theme";
-
-            if (!userAgreesWithLegalNotice())
-                return EXIT_SUCCESS;
+        if (!userAgreesWithLegalNotice())
+            return EXIT_SUCCESS;
 
 #elif defined(Q_OS_WIN)
             if (_isatty(_fileno(stdin))
