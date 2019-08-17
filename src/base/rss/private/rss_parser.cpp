@@ -585,11 +585,13 @@ void Parser::parse_impl(const QByteArray &feedData)
 
     emit finished(m_result);
     m_result.articles.clear(); // clear articles only
+    m_articleIDs.clear();
 }
 
 void Parser::parseRssArticle(QXmlStreamReader &xml)
 {
     QVariantHash article;
+    QString altTorrentUrl;
 
     while (!xml.atEnd()) {
         xml.readNext();
@@ -605,6 +607,8 @@ void Parser::parseRssArticle(QXmlStreamReader &xml)
             else if (name == QLatin1String("enclosure")) {
                 if (xml.attributes().value("type") == QLatin1String("application/x-bittorrent"))
                     article[Article::KeyTorrentURL] = xml.attributes().value(QLatin1String("url")).toString();
+                else if (xml.attributes().value("type").isEmpty())
+                    altTorrentUrl = xml.attributes().value(QLatin1String("url")).toString();
             }
             else if (name == QLatin1String("link")) {
                 const QString text {xml.readElementText().trimmed()};
@@ -631,7 +635,10 @@ void Parser::parseRssArticle(QXmlStreamReader &xml)
         }
     }
 
-    m_result.articles.prepend(article);
+    if (article[Article::KeyTorrentURL].toString().isEmpty())
+        article[Article::KeyTorrentURL] = altTorrentUrl;
+
+    addArticle(article);
 }
 
 void Parser::parseRSSChannel(QXmlStreamReader &xml)
@@ -726,7 +733,7 @@ void Parser::parseAtomArticle(QXmlStreamReader &xml)
         }
     }
 
-    m_result.articles.prepend(article);
+    addArticle(article);
 }
 
 void Parser::parseAtomChannel(QXmlStreamReader &xml)
@@ -755,4 +762,35 @@ void Parser::parseAtomChannel(QXmlStreamReader &xml)
             }
         }
     }
+}
+
+void Parser::addArticle(QVariantHash article)
+{
+    QVariant &torrentURL = article[Article::KeyTorrentURL];
+    if (torrentURL.toString().isEmpty())
+        torrentURL = article[Article::KeyLink];
+
+    // If item does not have an ID, fall back to some other identifier.
+    QVariant &localId = article[Article::KeyId];
+    if (localId.toString().isEmpty())
+        localId = article.value(Article::KeyTorrentURL);
+    if (localId.toString().isEmpty())
+        localId = article.value(Article::KeyTitle);
+
+    if (localId.toString().isEmpty()) {
+        // The article could not be uniquely identified
+        // since it has no appropriate data.
+        // Just ignore it.
+        return;
+    }
+
+    if (m_articleIDs.contains(localId.toString())) {
+        // The article could not be uniquely identified
+        // since the Feed has duplicate identifiers.
+        // Just ignore it.
+        return;
+    }
+
+    m_articleIDs.insert(localId.toString());
+    m_result.articles.prepend(article);
 }

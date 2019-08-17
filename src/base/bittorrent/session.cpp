@@ -1944,7 +1944,7 @@ bool Session::deleteTorrent(const QString &hash, bool deleteLocalFiles)
             Utils::Fs::forceRemove(unwantedFile);
             const QString parentFolder = Utils::Fs::branchPath(unwantedFile);
             qDebug("Attempt to remove parent folder (if empty): %s", qUtf8Printable(parentFolder));
-            QDir().rmpath(parentFolder);
+            QDir().rmdir(parentFolder);
         }
     }
 
@@ -2079,6 +2079,12 @@ void Session::bottomTorrentsPriority(const QStringList &hashes)
     saveTorrentsQueue();
 }
 
+void Session::handleTorrentSaveResumeDataRequested(TorrentHandle *const torrent)
+{
+    qDebug("Saving resume data is requested for torrent '%s'...", qUtf8Printable(torrent->name()));
+    ++m_numResumeData;
+}
+
 QHash<InfoHash, TorrentHandle *> Session::torrents() const
 {
     return m_torrents;
@@ -2147,23 +2153,26 @@ bool Session::addTorrent_impl(CreateTorrentParams params, const MagnetUri &magne
     if (fromMagnetUri) {
         hash = magnetUri.hash();
 
-        if (m_loadedMetadata.contains(hash)) {
-            // Adding preloaded torrent
-            m_loadedMetadata.remove(hash);
-            libt::torrent_handle handle = m_nativeSession->find_torrent(hash);
-            --m_extraLimit;
-
-            try {
-                handle.auto_managed(false);
-                handle.pause();
+        const auto it = m_loadedMetadata.constFind(hash);
+        if (it != m_loadedMetadata.constEnd()) {
+            // Adding preloaded torrent...
+            const TorrentInfo metadata = it.value();
+            if (metadata.isValid()) {
+                // Metadata is received and torrent_handle is being deleted
+                // so we can't reuse it. Just add torrent using its metadata.
+                return addTorrent_impl(params
+                    , MagnetUri {}, metadata, fastresumeData);
             }
-            catch (std::exception &) {}
 
-            adjustLimits();
+            // Reuse existing torrent_handle
+            lt::torrent_handle handle = m_nativeSession->find_torrent(hash);
+            // We need to pause it first to create TorrentHandle within the same
+            // underlying state as in other cases.
+            handle.auto_managed(false);
+            handle.pause();
 
-            // use common 2nd step of torrent addition
+            m_loadedMetadata.remove(hash);
             m_addingTorrents.insert(hash, params);
-            createTorrentHandle(handle);
             return true;
         }
 
@@ -2222,9 +2231,12 @@ bool Session::addTorrent_impl(CreateTorrentParams params, const MagnetUri &magne
     else
         p.storage_mode = libt::storage_mode_sparse;
 
-    p.flags |= libt::add_torrent_params::flag_paused; // Start in pause
-    p.flags &= ~libt::add_torrent_params::flag_auto_managed; // Because it is added in paused state
     p.flags &= ~libt::add_torrent_params::flag_duplicate_is_error; // Already checked
+    // Make sure the torrent will be initially checked and then paused
+    // to perform some service jobs on it. We will start it if needed.
+    p.flags |= lt::add_torrent_params::flag_paused;
+    p.flags |= lt::add_torrent_params::flag_auto_managed;
+    p.flags |= lt::add_torrent_params::flag_stop_when_ready;
 
     // Seeding mode
     // Skip checking and directly start seeding (new in libtorrent v0.15)
@@ -2236,18 +2248,20 @@ bool Session::addTorrent_impl(CreateTorrentParams params, const MagnetUri &magne
     if (!fromMagnetUri) {
         if (params.restored) {
             // Set torrent fast resume data
-            p.resume_data = {fastresumeData.constData(), fastresumeData.constData() + fastresumeData.size()};
+            // Make sure the torrent will be initially checked and then paused
+            // to perform some service jobs on it. We will start it if needed.
+            // (Workaround to easily support libtorrent-1.1)
+            QByteArray patchedFastresumeData = fastresumeData;
+            patchedFastresumeData.replace("6:pausedi0e", "6:pausedi1e");
+            patchedFastresumeData.replace("12:auto_managedi0e", "12:auto_managedi1e");
+
+            p.resume_data = std::vector<char> {patchedFastresumeData.constData()
+                , (patchedFastresumeData.constData() + patchedFastresumeData.size())};
             p.flags |= libt::add_torrent_params::flag_use_resume_save_path;
         }
         else {
             p.file_priorities = {params.filePriorities.begin(), params.filePriorities.end()};
         }
-    }
-
-    if (params.restored && !params.paused) {
-        // Make sure the torrent will restored in "paused" state
-        // Then we will start it if needed
-        p.flags |= libt::add_torrent_params::flag_stop_when_ready;
     }
 
     // Limits
@@ -2374,11 +2388,15 @@ void Session::generateResumeData(bool final)
 {
     for (TorrentHandle *const torrent : asConst(m_torrents)) {
         if (!torrent->isValid()) continue;
-        if (torrent->isChecking() || torrent->isPaused()) continue;
-        if (!final && !torrent->needSaveResumeData()) continue;
-        if (torrent->hasMissingFiles() || torrent->hasError()) continue;
 
-        saveTorrentResumeData(torrent);
+        if (!final && !torrent->needSaveResumeData()) continue;
+        if (torrent->isChecking()
+            || torrent->isPaused()
+            || torrent->hasError()
+            || torrent->hasMissingFiles())
+            continue;
+
+        torrent->saveResumeData();
     }
 }
 
@@ -3106,22 +3124,20 @@ void Session::setCheckingMemUsage(int size)
 
 int Session::diskCacheSize() const
 {
-    int size = m_diskCacheSize;
     // These macros may not be available on compilers other than MSVC and GCC
 #if defined(__x86_64__) || defined(_M_X64)
-    size = qMin(size, 4096);  // 4GiB
+    return qMin(m_diskCacheSize.value(), 33554431);  // 32768GiB
 #else
     // When build as 32bit binary, set the maximum at less than 2GB to prevent crashes
     // allocate 1536MiB and leave 512MiB to the rest of program data in RAM
-    size = qMin(size, 1536);
+    return qMin(m_diskCacheSize.value(), 1536);
 #endif
-    return size;
 }
 
 void Session::setDiskCacheSize(int size)
 {
 #if defined(__x86_64__) || defined(_M_X64)
-    size = qMin(size, 4096);  // 4GiB
+    size = qMin(size, 33554431);  // 32768GiB
 #else
     // allocate 1536MiB and leave 512MiB to the rest of program data in RAM
     size = qMin(size, 1536);
@@ -3593,55 +3609,48 @@ void Session::updateSeedingLimitTimer()
 
 void Session::handleTorrentShareLimitChanged(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
-    updateSeedingLimitTimer();
-}
-
-void Session::saveTorrentResumeData(TorrentHandle *const torrent)
-{
-    qDebug("Saving fastresume data for %s", qUtf8Printable(torrent->name()));
     torrent->saveResumeData();
-    ++m_numResumeData;
+    updateSeedingLimitTimer();
 }
 
 void Session::handleTorrentNameChanged(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
 }
 
 void Session::handleTorrentSavePathChanged(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit torrentSavePathChanged(torrent);
 }
 
 void Session::handleTorrentCategoryChanged(TorrentHandle *const torrent, const QString &oldCategory)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit torrentCategoryChanged(torrent, oldCategory);
 }
 
 void Session::handleTorrentTagAdded(TorrentHandle *const torrent, const QString &tag)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit torrentTagAdded(torrent, tag);
 }
 
 void Session::handleTorrentTagRemoved(TorrentHandle *const torrent, const QString &tag)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit torrentTagRemoved(torrent, tag);
 }
 
 void Session::handleTorrentSavingModeChanged(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit torrentSavingModeChanged(torrent);
 }
 
 void Session::handleTorrentTrackersAdded(TorrentHandle *const torrent, const QList<TrackerEntry> &newTrackers)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
 
     for (const TrackerEntry &newTracker : newTrackers)
         LogMsg(tr("Tracker '%1' was added to torrent '%2'").arg(newTracker.url(), torrent->name()));
@@ -3653,7 +3662,7 @@ void Session::handleTorrentTrackersAdded(TorrentHandle *const torrent, const QLi
 
 void Session::handleTorrentTrackersRemoved(TorrentHandle *const torrent, const QList<TrackerEntry> &deletedTrackers)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
 
     for (const TrackerEntry &deletedTracker : deletedTrackers)
         LogMsg(tr("Tracker '%1' was deleted from torrent '%2'").arg(deletedTracker.url(), torrent->name()));
@@ -3665,27 +3674,27 @@ void Session::handleTorrentTrackersRemoved(TorrentHandle *const torrent, const Q
 
 void Session::handleTorrentTrackersChanged(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit trackersChanged(torrent);
 }
 
 void Session::handleTorrentUrlSeedsAdded(TorrentHandle *const torrent, const QList<QUrl> &newUrlSeeds)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     for (const QUrl &newUrlSeed : newUrlSeeds)
         LogMsg(tr("URL seed '%1' was added to torrent '%2'").arg(newUrlSeed.toString(), torrent->name()));
 }
 
 void Session::handleTorrentUrlSeedsRemoved(TorrentHandle *const torrent, const QList<QUrl> &urlSeeds)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     for (const QUrl &urlSeed : urlSeeds)
         LogMsg(tr("URL seed '%1' was removed from torrent '%2'").arg(urlSeed.toString(), torrent->name()));
 }
 
 void Session::handleTorrentMetadataReceived(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
 
     // Save metadata
     const QDir resumeDataDir(m_resumeFolderPath);
@@ -3702,13 +3711,13 @@ void Session::handleTorrentMetadataReceived(TorrentHandle *const torrent)
 void Session::handleTorrentPaused(TorrentHandle *const torrent)
 {
     if (!torrent->hasError() && !torrent->hasMissingFiles())
-        saveTorrentResumeData(torrent);
+        torrent->saveResumeData();
     emit torrentPaused(torrent);
 }
 
 void Session::handleTorrentResumed(TorrentHandle *const torrent)
 {
-    saveTorrentResumeData(torrent);
+    torrent->saveResumeData();
     emit torrentResumed(torrent);
 }
 
@@ -3720,7 +3729,7 @@ void Session::handleTorrentChecked(TorrentHandle *const torrent)
 void Session::handleTorrentFinished(TorrentHandle *const torrent)
 {
     if (!torrent->hasError() && !torrent->hasMissingFiles())
-        saveTorrentResumeData(torrent);
+        torrent->saveResumeData();
     emit torrentFinished(torrent);
 
     qDebug("Checking if the torrent contains torrent files to download");
@@ -4143,10 +4152,7 @@ void Session::handleAlert(libt::alert *a)
         case libt::tracker_warning_alert::alert_type:
         case libt::fastresume_rejected_alert::alert_type:
         case libt::torrent_checked_alert::alert_type:
-            dispatchTorrentAlert(a);
-            break;
         case libt::metadata_received_alert::alert_type:
-            handleMetadataReceivedAlert(static_cast<libt::metadata_received_alert*>(a));
             dispatchTorrentAlert(a);
             break;
         case libt::state_update_alert::alert_type:
@@ -4206,8 +4212,19 @@ void Session::handleAlert(libt::alert *a)
 void Session::dispatchTorrentAlert(libt::alert *a)
 {
     TorrentHandle *const torrent = m_torrents.value(static_cast<libt::torrent_alert*>(a)->handle.info_hash());
-    if (torrent)
+    if (torrent) {
         torrent->handleAlert(a);
+        return;
+    }
+
+    switch (a->type()) {
+    case libt::torrent_paused_alert::alert_type:
+        handleTorrentPausedAlert(static_cast<const libt::torrent_paused_alert*>(a));
+        break;
+    case libt::metadata_received_alert::alert_type:
+        handleMetadataReceivedAlert(static_cast<const libt::metadata_received_alert*>(a));
+        break;
+    }
 }
 
 void Session::createTorrentHandle(const libt::torrent_handle &nativeHandle)
@@ -4251,7 +4268,7 @@ void Session::createTorrentHandle(const libt::torrent_handle &nativeHandle)
 
         // In case of crash before the scheduled generation
         // of the fastresumes.
-        saveTorrentResumeData(torrent);
+        torrent->saveResumeData();
     }
 
     if (((torrent->ratioLimit() >= 0) || (torrent->seedingTimeLimit() >= 0))
@@ -4311,12 +4328,17 @@ void Session::handleTorrentDeleteFailedAlert(libt::torrent_delete_failed_alert *
     // so we remove the directory ourselves
     Utils::Fs::smartRemoveEmptyFolderTree(tmpRemovingTorrentData.savePathToRemove);
 
-    LogMsg(tr("'%1' was removed from the transfer list but the files couldn't be deleted. Error: %2", "'xxx.avi' was removed...")
-           .arg(tmpRemovingTorrentData.name, QString::fromLocal8Bit(p->error.message().c_str()))
-           , Log::CRITICAL);
+    if (p->error) {
+        LogMsg(tr("'%1' was removed from the transfer list but the files couldn't be deleted. Error: %2", "'xxx.avi' was removed...")
+                .arg(tmpRemovingTorrentData.name, QString::fromLocal8Bit(p->error.message().c_str()))
+            , Log::WARNING);
+    }
+    else {
+        LogMsg(tr("'%1' was removed from the transfer list.", "'xxx.avi' was removed...").arg(tmpRemovingTorrentData.name));
+    }
 }
 
-void Session::handleMetadataReceivedAlert(libt::metadata_received_alert *p)
+void Session::handleMetadataReceivedAlert(const libt::metadata_received_alert *p)
 {
     InfoHash hash = p->handle.info_hash();
 
@@ -4328,22 +4350,44 @@ void Session::handleMetadataReceivedAlert(libt::metadata_received_alert *p)
     }
 }
 
+void Session::handleTorrentPausedAlert(const libtorrent::torrent_paused_alert *p)
+{
+    const InfoHash hash {p->handle.info_hash()};
+
+    if (m_addingTorrents.contains(hash)) {
+        // Adding preloaded torrent
+        lt::torrent_handle handle = p->handle;
+        --m_extraLimit;
+
+        // Preloaded torrent is in "Upload mode" so we need to disable it
+        // otherwise the torrent never be downloaded (until application restart)
+        handle.set_upload_mode(false);
+
+        adjustLimits();
+        // use common 2nd step of torrent addition
+        createTorrentHandle(handle);
+    }
+}
+
 void Session::handleFileErrorAlert(libt::file_error_alert *p)
 {
-    qDebug() << Q_FUNC_INFO;
-    // NOTE: Check this function!
     TorrentHandle *const torrent = m_torrents.value(p->handle.info_hash());
-    if (torrent) {
-        const InfoHash hash = torrent->hash();
-        if (!m_recentErroredTorrents.contains(hash)) {
-            m_recentErroredTorrents.insert(hash);
-            const QString msg = QString::fromStdString(p->message());
-            LogMsg(tr("An I/O error occurred, '%1' paused. %2").arg(torrent->name(), msg));
-            emit fullDiskError(torrent, msg);
-        }
+    if (!torrent)
+        return;
 
-        m_recentErroredTorrentsTimer->start();
+    const InfoHash hash = torrent->hash();
+
+    if (!m_recentErroredTorrents.contains(hash)) {
+        m_recentErroredTorrents.insert(hash);
+
+        const QString msg = QString::fromStdString(p->message());
+        LogMsg(tr("File error alert. Torrent: \"%1\". File: \"%2\". Reason: %3")
+                .arg(torrent->name(), p->filename(), msg)
+            , Log::WARNING);
+        emit fullDiskError(torrent, msg);
     }
+
+    m_recentErroredTorrentsTimer->start();
 }
 
 void Session::handlePortmapWarningAlert(libt::portmap_error_alert *p)

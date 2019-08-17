@@ -385,6 +385,12 @@ namespace BitTorrent
     private:
         typedef boost::function<void ()> EventTrigger;
 
+#if (LIBTORRENT_VERSION_NUM < 10200)
+        using LTFileIndex = int;
+#else
+        using LTFileIndex = lt::file_index_t;
+#endif
+
         void updateStatus();
         void updateStatus(const libtorrent::torrent_status &nativeStatus);
         void updateState();
@@ -446,6 +452,10 @@ namespace BitTorrent
         QQueue<EventTrigger> m_moveFinishedTriggers;
         int m_renameCount;
 
+        // Until libtorrent provide an "old_name" field in `file_renamed_alert`
+        // we will rely on this workaround to remove empty leftover folders
+        QHash<LTFileIndex, QVector<QString>> m_oldPath;
+
         bool m_useAutoTMM;
 
         // Persistent data
@@ -457,6 +467,7 @@ namespace BitTorrent
         qreal m_ratioLimit;
         int m_seedingTimeLimit;
         bool m_tempPathDisabled;
+        bool m_fastresumeDataRejected;
         bool m_hasMissingFiles;
         bool m_hasRootFolder;
         bool m_needsToSetFirstLastPiecePriority;
@@ -466,12 +477,15 @@ namespace BitTorrent
 
         enum StartupState
         {
-            NotStarted,
-            Starting,
-            Started
+            Preparing, // torrent is preparing to start regular processing
+            Starting, // torrent is prepared and starting to perform regular processing
+            Started // torrent is performing regular processing
         };
+        StartupState m_startupState = Preparing;
+        // Handle torrent state when it starts performing some service job
+        // being in Paused state so it might be unpaused internally and then paused again
+        bool m_pauseWhenReady;
 
-        StartupState m_startupState = NotStarted;
         bool m_unchecked = false;
     };
 }

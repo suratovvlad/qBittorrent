@@ -482,6 +482,7 @@ namespace BitTorrent
         void bottomTorrentsPriority(const QStringList &hashes);
 
         // TorrentHandle interface
+        void handleTorrentSaveResumeDataRequested(TorrentHandle *const torrent);
         void handleTorrentShareLimitChanged(TorrentHandle *const torrent);
         void handleTorrentNameChanged(TorrentHandle *const torrent);
         void handleTorrentSavePathChanged(TorrentHandle *const torrent);
@@ -608,13 +609,13 @@ namespace BitTorrent
 
         void updateSeedingLimitTimer();
         void exportTorrentFile(TorrentHandle *const torrent, TorrentExportFolder folder = TorrentExportFolder::Regular);
-        void saveTorrentResumeData(TorrentHandle *const torrent);
 
         void handleAlert(libtorrent::alert *a);
         void dispatchTorrentAlert(libtorrent::alert *a);
         void handleAddTorrentAlert(libtorrent::add_torrent_alert *p);
         void handleStateUpdateAlert(libtorrent::state_update_alert *p);
-        void handleMetadataReceivedAlert(libtorrent::metadata_received_alert *p);
+        void handleMetadataReceivedAlert(const libtorrent::metadata_received_alert *p);
+        void handleTorrentPausedAlert(const libtorrent::torrent_paused_alert *p);
         void handleFileErrorAlert(libtorrent::file_error_alert *p);
         void handleTorrentRemovedAlert(libtorrent::torrent_removed_alert *p);
         void handleTorrentDeletedAlert(libtorrent::torrent_deleted_alert *p);

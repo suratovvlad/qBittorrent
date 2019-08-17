@@ -188,10 +188,12 @@ TorrentHandle::TorrentHandle(Session *session, const libtorrent::torrent_handle 
     , m_ratioLimit(params.ratioLimit)
     , m_seedingTimeLimit(params.seedingTimeLimit)
     , m_tempPathDisabled(params.disableTempPath)
+    , m_fastresumeDataRejected(false)
     , m_hasMissingFiles(false)
     , m_hasRootFolder(params.hasRootFolder)
     , m_needsToSetFirstLastPiecePriority(false)
     , m_needsToStartForced(params.forced)
+    , m_pauseWhenReady(params.paused)
 {
     if (m_useAutoTMM)
         m_savePath = Utils::Fs::toNativePath(m_session->categorySavePath(m_category));
@@ -217,18 +219,18 @@ TorrentHandle::TorrentHandle(Session *session, const libtorrent::torrent_handle 
             m_hasRootFolder = false;
     }
 
-    // "started" means "all initialization has completed and torrent has started regular processing".
-    // When torrent added/restored in "paused" state it become "started" immediately after construction.
-    // When it is added/restored in "resumed" state, it become "started" after it is really resumed
-    // (i.e. after receiving "torrent resumed" alert).
-    if (params.paused) {
-        m_startupState = Started;
-    }
-    else if (!params.restored || !hasMetadata()) {
-        // Resume torrent because it was added in "resumed" state
-        // but it's actually paused during initialization
-        m_startupState = Starting;
-        resume(params.forced);
+    if (!hasMetadata()) {
+        // There is nothing to prepare
+        if (!m_pauseWhenReady) {
+            // Resume torrent because it was added in "resumed" state
+            // but it's actually paused during initialization.
+            m_startupState = Starting;
+            resume_impl(m_needsToStartForced);
+        }
+        else {
+            m_startupState = Started;
+            m_pauseWhenReady = false;
+        }
     }
 }
 
@@ -507,6 +509,7 @@ bool TorrentHandle::needSaveResumeData() const
 void TorrentHandle::saveResumeData()
 {
     m_nativeHandle.save_resume_data();
+    m_session->handleTorrentSaveResumeDataRequested(this);
 }
 
 int TorrentHandle::filesCount() const
@@ -1230,6 +1233,8 @@ bool TorrentHandle::setCategory(const QString &category)
 
 void TorrentHandle::move(QString path)
 {
+    if (m_startupState != Started) return;
+
     m_useAutoTMM = false;
     m_session->handleTorrentSavingModeChanged(this);
 
@@ -1268,6 +1273,7 @@ void TorrentHandle::forceDHTAnnounce()
 
 void TorrentHandle::forceRecheck()
 {
+    if (m_startupState != Started) return;
     if (!hasMetadata()) return;
 
     m_nativeHandle.force_recheck();
@@ -1275,7 +1281,8 @@ void TorrentHandle::forceRecheck()
 
     if (isPaused()) {
         m_nativeHandle.stop_when_ready(true);
-        resume_impl(false);
+        m_nativeHandle.auto_managed(true);
+        m_pauseWhenReady = true;
     }
 }
 
@@ -1285,6 +1292,8 @@ void TorrentHandle::setSequentialDownload(bool b)
         m_nativeHandle.set_sequential_download(b);
         m_nativeStatus.sequential_download = b; // prevent return cached value
     }
+
+    saveResumeData();
 }
 
 void TorrentHandle::toggleSequentialDownload()
@@ -1331,6 +1340,8 @@ void TorrentHandle::setFirstLastPiecePriorityImpl(const bool enabled, const QVec
 
     LogMsg(tr("Download first and last piece first: %1, torrent: '%2'")
         .arg((enabled ? tr("On") : tr("Off")), name()));
+
+    saveResumeData();
 }
 
 void TorrentHandle::toggleFirstLastPiecePriority()
@@ -1340,6 +1351,13 @@ void TorrentHandle::toggleFirstLastPiecePriority()
 
 void TorrentHandle::pause()
 {
+    if (m_startupState != Started) return;
+    if (m_pauseWhenReady) return;
+    if (isChecking()) {
+        m_pauseWhenReady = true;
+        return;
+    }
+
     if (isPaused()) return;
 
     m_nativeHandle.auto_managed(false);
@@ -1354,6 +1372,9 @@ void TorrentHandle::pause()
 
 void TorrentHandle::resume(bool forced)
 {
+    if (m_startupState != Started) return;
+
+    m_pauseWhenReady = false;
     resume_impl(forced);
 }
 
@@ -1402,6 +1423,7 @@ void TorrentHandle::setTrackerLogin(const QString &username, const QString &pass
 
 void TorrentHandle::renameFile(int index, const QString &name)
 {
+    m_oldPath[LTFileIndex {index}].push_back(filePath(index));
     ++m_renameCount;
     qDebug() << Q_FUNC_INFO << index << name;
     m_nativeHandle.rename_file(index, Utils::Fs::toNativePath(name).toStdString());
@@ -1549,17 +1571,24 @@ void TorrentHandle::handleTorrentCheckedAlert(const libtorrent::torrent_checked_
     Q_UNUSED(p);
     qDebug("\"%s\" have just finished checking", qUtf8Printable(name()));
 
-    if (m_startupState == NotStarted) {
-        if (!m_hasMissingFiles) {
-            // Resume torrent because it was added in "resumed" state
-            // but it's actually paused during initialization.
-            m_startupState = Starting;
-            resume(m_needsToStartForced);
+    if (m_startupState == Preparing) {
+        if (!m_pauseWhenReady) {
+            if (!m_hasMissingFiles) {
+                // Resume torrent because it was added in "resumed" state
+                // but it's actually paused during initialization.
+                m_startupState = Starting;
+                resume_impl(m_needsToStartForced);
+            }
+            else {
+                // Torrent that has missing files is paused.
+                m_startupState = Started;
+            }
         }
         else {
-            // Torrent that has missing files is marked as "started"
-            // but it remains paused.
             m_startupState = Started;
+            m_pauseWhenReady = false;
+            if (m_fastresumeDataRejected && !m_hasMissingFiles)
+                saveResumeData();
         }
     }
 
@@ -1583,10 +1612,10 @@ void TorrentHandle::handleTorrentFinishedAlert(const libtorrent::torrent_finishe
     Q_UNUSED(p);
     qDebug("Got a torrent finished alert for \"%s\"", qUtf8Printable(name()));
     qDebug("Torrent has seed status: %s", m_hasSeedStatus ? "yes" : "no");
+    m_hasMissingFiles = false;
     if (m_hasSeedStatus) return;
 
     updateStatus();
-    m_hasMissingFiles = false;
     m_hasSeedStatus = true;
 
     adjustActualSavePath();
@@ -1610,9 +1639,14 @@ void TorrentHandle::handleTorrentPausedAlert(const libtorrent::torrent_paused_al
     Q_UNUSED(p);
 
     if (m_startupState == Started) {
-        updateStatus();
-        m_speedMonitor.reset();
-        m_session->handleTorrentPaused(this);
+        if (!m_pauseWhenReady) {
+            updateStatus();
+            m_speedMonitor.reset();
+            m_session->handleTorrentPaused(this);
+        }
+        else {
+            m_pauseWhenReady = false;
+        }
     }
 }
 
@@ -1634,8 +1668,8 @@ void TorrentHandle::handleSaveResumeDataAlert(const libtorrent::save_resume_data
     libtorrent::entry &resumeData = useDummyResumeData ? dummyEntry : *(p->resume_data);
     if (useDummyResumeData) {
         resumeData["qBt-magnetUri"] = toMagnetUri().toStdString();
-        resumeData["qBt-paused"] = isPaused();
-        resumeData["qBt-forced"] = isForced();
+        resumeData["paused"] = isPaused();
+        resumeData["auto_managed"] = m_nativeStatus.auto_managed;
         // Both firstLastPiecePriority and sequential need to be stored in the
         // resume data if there is no metadata, otherwise they won't be
         // restored if qBittorrent quits before the metadata are retrieved:
@@ -1657,6 +1691,14 @@ void TorrentHandle::handleSaveResumeDataAlert(const libtorrent::save_resume_data
     resumeData["qBt-queuePosition"] = (nativeHandle().queue_position() + 1); // qBt starts queue at 1
     resumeData["qBt-hasRootFolder"] = m_hasRootFolder;
 
+    if (m_pauseWhenReady) {
+        // We need to redefine these values when torrent starting/rechecking
+        // in "paused" state since native values can be logically wrong
+        // (torrent can be not paused and auto_managed when it is checking).
+        resumeData["paused"] = true;
+        resumeData["auto_managed"] = false;
+    }
+
     m_session->handleTorrentResumeDataReady(this, resumeData);
 }
 
@@ -1664,14 +1706,20 @@ void TorrentHandle::handleSaveResumeDataFailedAlert(const libtorrent::save_resum
 {
     // if torrent has no metadata we should save dummy fastresume data
     // containing Magnet URI and qBittorrent own resume data only
-    if (p->error.value() == libt::errors::no_metadata)
+    if (p->error.value() == libt::errors::no_metadata) {
         handleSaveResumeDataAlert(nullptr);
-    else
+    }
+    else {
+        LogMsg(tr("Save resume data failed. Torrent: \"%1\", error: \"%2\"")
+            .arg(name(), QString::fromLocal8Bit(p->error.message().c_str())), Log::CRITICAL);
         m_session->handleTorrentResumeDataFailed(this);
+    }
 }
 
 void TorrentHandle::handleFastResumeRejectedAlert(const libtorrent::fastresume_rejected_alert *p)
 {
+    m_fastresumeDataRejected = true;
+
     if (p->error.value() == libt::errors::mismatching_file_size) {
         // Mismatching file size (files were probably moved)
         m_hasMissingFiles = true;
@@ -1679,51 +1727,72 @@ void TorrentHandle::handleFastResumeRejectedAlert(const libtorrent::fastresume_r
     }
     else {
         LogMsg(tr("Fast resume data was rejected for torrent '%1'. Reason: %2. Checking again...")
-            .arg(name(), QString::fromStdString(p->message())), Log::CRITICAL);
+            .arg(name(), QString::fromStdString(p->message())), Log::WARNING);
     }
 }
 
 void TorrentHandle::handleFileRenamedAlert(const libtorrent::file_renamed_alert *p)
 {
-#if LIBTORRENT_VERSION_NUM < 10100
-    QString newName = Utils::Fs::fromNativePath(QString::fromStdString(p->name));
-#else
-    QString newName = Utils::Fs::fromNativePath(p->new_name());
-#endif
-
-    // TODO: Check this!
-    if (filesCount() > 1) {
-        // Check if folders were renamed
-        QStringList oldPathParts = m_torrentInfo.origFilePath(p->index).split('/');
-        oldPathParts.removeLast();
-        QString oldPath = oldPathParts.join('/');
-        QStringList newPathParts = newName.split('/');
-        newPathParts.removeLast();
-        QString newPath = newPathParts.join('/');
-        if (!newPathParts.isEmpty() && (oldPath != newPath)) {
-            qDebug("oldPath(%s) != newPath(%s)", qUtf8Printable(oldPath), qUtf8Printable(newPath));
-            oldPath = QString("%1/%2").arg(savePath(true), oldPath);
-            qDebug("Detected folder renaming, attempt to delete old folder: %s", qUtf8Printable(oldPath));
-            QDir().rmpath(oldPath);
-        }
-    }
-
     // We don't really need to call updateStatus() in this place.
     // All we need to do is make sure we have a valid instance of the TorrentInfo object.
     m_torrentInfo = TorrentInfo {m_nativeHandle.torrent_file()};
 
+    // remove empty leftover folders
+    // for example renaming "a/b/c" to "d/b/c", then folders "a/b" and "a" will
+    // be removed if they are empty
+    const QString oldFilePath = m_oldPath[LTFileIndex {p->index}].takeFirst();
+    const QString newFilePath = Utils::Fs::fromNativePath(p->new_name());
+
+    if (m_oldPath[LTFileIndex {p->index}].isEmpty())
+        m_oldPath.remove(LTFileIndex {p->index});
+
+    QVector<QStringRef> oldPathParts = oldFilePath.splitRef('/', QString::SkipEmptyParts);
+    oldPathParts.removeLast();  // drop file name part
+    QVector<QStringRef> newPathParts = newFilePath.splitRef('/', QString::SkipEmptyParts);
+    newPathParts.removeLast();  // drop file name part
+
+#if defined(Q_OS_WIN)
+    const Qt::CaseSensitivity caseSensitivity = Qt::CaseInsensitive;
+#else
+    const Qt::CaseSensitivity caseSensitivity = Qt::CaseSensitive;
+#endif
+
+    int pathIdx = 0;
+    while ((pathIdx < oldPathParts.size()) && (pathIdx < newPathParts.size())) {
+        if (oldPathParts[pathIdx].compare(newPathParts[pathIdx], caseSensitivity) != 0)
+            break;
+        ++pathIdx;
+    }
+
+    for (int i = (oldPathParts.size() - 1); i >= pathIdx; --i) {
+        QDir().rmdir(savePath() + Utils::String::join(oldPathParts, QLatin1String("/")));
+        oldPathParts.removeLast();
+    }
+
     --m_renameCount;
     while (!isMoveInProgress() && (m_renameCount == 0) && !m_moveFinishedTriggers.isEmpty())
         m_moveFinishedTriggers.takeFirst()();
+
+    if (isPaused() && (m_renameCount == 0))
+        saveResumeData();  // otherwise the new path will not be saved
 }
 
 void TorrentHandle::handleFileRenameFailedAlert(const libtorrent::file_rename_failed_alert *p)
 {
-    Q_UNUSED(p);
+    LogMsg(tr("File rename failed. Torrent: \"%1\", file: \"%2\", reason: \"%3\"")
+        .arg(name(), filePath(p->index)
+             , QString::fromLocal8Bit(p->error.message().c_str())), Log::WARNING);
+
+    m_oldPath[LTFileIndex {p->index}].removeFirst();
+    if (m_oldPath[LTFileIndex {p->index}].isEmpty())
+        m_oldPath.remove(LTFileIndex {p->index});
 
     --m_renameCount;
     while (!isMoveInProgress() && (m_renameCount == 0) && !m_moveFinishedTriggers.isEmpty())
         m_moveFinishedTriggers.takeFirst()();
+
+    if (isPaused() && (m_renameCount == 0))
+        saveResumeData();  // otherwise the new path will not be saved
 }
 
 void TorrentHandle::handleFileCompletedAlert(const libtorrent::file_completed_alert *p)
