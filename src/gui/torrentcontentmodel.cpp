@@ -30,7 +30,6 @@
 
 #include <algorithm>
 
-#include <QDir>
 #include <QFileIconProvider>
 #include <QFileInfo>
 #include <QIcon>
@@ -50,13 +49,13 @@
 #endif
 
 #include "base/bittorrent/downloadpriority.h"
+#include "base/bittorrent/torrentinfo.h"
 #include "base/global.h"
-#include "base/utils/misc.h"
 #include "base/utils/fs.h"
-#include "guiiconprovider.h"
 #include "torrentcontentmodelfile.h"
 #include "torrentcontentmodelfolder.h"
 #include "torrentcontentmodelitem.h"
+#include "uithememanager.h"
 
 #ifdef Q_OS_MAC
 #include "macutilities.h"
@@ -64,12 +63,6 @@
 
 namespace
 {
-    QIcon getDirectoryIcon()
-    {
-        static QIcon cached = GuiIconProvider::instance()->getIcon("inode-directory");
-        return cached;
-    }
-
     class UnifiedFileIconProvider : public QFileIconProvider
     {
     public:
@@ -78,7 +71,7 @@ namespace
         QIcon icon(const QFileInfo &info) const override
         {
             Q_UNUSED(info);
-            static QIcon cached = GuiIconProvider::instance()->getIcon("text-plain");
+            static QIcon cached = UIThemeManager::instance()->getIcon("text-plain");
             return cached;
         }
     };
@@ -205,7 +198,7 @@ namespace
 
 TorrentContentModel::TorrentContentModel(QObject *parent)
     : QAbstractItemModel(parent)
-    , m_rootItem(new TorrentContentModelFolder(QList<QVariant>({ tr("Name"), tr("Size"), tr("Progress"), tr("Download Priority"), tr("Remaining"), tr("Availability") })))
+    , m_rootItem(new TorrentContentModelFolder(QVector<QVariant>({ tr("Name"), tr("Size"), tr("Progress"), tr("Download Priority"), tr("Remaining"), tr("Availability") })))
 {
 #if defined(Q_OS_WIN)
     m_fileIconProvider = new WinShellFileIconProvider();
@@ -359,7 +352,7 @@ QVariant TorrentContentModel::data(const QModelIndex &index, int role) const
 
     if ((index.column() == TorrentContentModelItem::COL_NAME) && (role == Qt::DecorationRole)) {
         if (item->itemType() == TorrentContentModelItem::FolderType)
-            return getDirectoryIcon();
+            return m_fileIconProvider->icon(QFileIconProvider::Folder);
 
         return m_fileIconProvider->icon(QFileInfo(item->name()));
     }
@@ -476,14 +469,18 @@ void TorrentContentModel::setupModelData(const BitTorrent::TorrentInfo &info)
     // Iterate over files
     for (int i = 0; i < filesCount; ++i) {
         currentParent = m_rootItem;
-        QString path = Utils::Fs::fromNativePath(info.filePath(i));
+        const QString path = Utils::Fs::toUniformPath(info.filePath(i));
+
         // Iterate of parts of the path to create necessary folders
-        QStringList pathFolders = path.split('/', QString::SkipEmptyParts);
+        QVector<QStringRef> pathFolders = path.splitRef('/', QString::SkipEmptyParts);
         pathFolders.removeLast();
-        for (const QString &pathPart : asConst(pathFolders)) {
-            if (pathPart == ".unwanted")
+
+        for (const QStringRef &pathPartRef : asConst(pathFolders)) {
+            if (pathPartRef == QLatin1String(".unwanted"))
                 continue;
-            TorrentContentModelFolder* newParent = currentParent->childFolderWithName(pathPart);
+
+            const QString pathPart = pathPartRef.toString();
+            TorrentContentModelFolder *newParent = currentParent->childFolderWithName(pathPart);
             if (!newParent) {
                 newParent = new TorrentContentModelFolder(pathPart, currentParent);
                 currentParent->appendChild(newParent);

@@ -29,10 +29,6 @@
 #include "webapplication.h"
 
 #include <algorithm>
-#include <functional>
-#include <queue>
-#include <stdexcept>
-#include <vector>
 
 #include <QDateTime>
 #include <QDebug>
@@ -41,12 +37,13 @@
 #include <QJsonDocument>
 #include <QMimeDatabase>
 #include <QMimeType>
+#include <QNetworkCookie>
 #include <QRegExp>
 #include <QUrl>
 
+#include "base/algorithm.h"
 #include "base/global.h"
 #include "base/http/httperror.h"
-#include "base/iconprovider.h"
 #include "base/logger.h"
 #include "base/preferences.h"
 #include "base/utils/bytearray.h"
@@ -91,7 +88,7 @@ namespace
         return ret;
     }
 
-    inline QUrl urlFromHostHeader(const QString &hostHeader)
+    QUrl urlFromHostHeader(const QString &hostHeader)
     {
         if (!hostHeader.contains(QLatin1String("://")))
             return {QLatin1String("http://") + hostHeader};
@@ -194,7 +191,7 @@ void WebApplication::sendWebUIFile()
     sendFile(localPath);
 }
 
-void WebApplication::translateDocument(QString &data)
+void WebApplication::translateDocument(QString &data) const
 {
     const QRegularExpression regex("QBT_TR\\((([^\\)]|\\)(?!QBT_TR))+)\\)QBT_TR\\[CONTEXT=([a-zA-Z_][a-zA-Z0-9_]*)\\]");
 
@@ -335,6 +332,7 @@ void WebApplication::configure()
     m_isLocalAuthEnabled = pref->isWebUiLocalAuthEnabled();
     m_isAuthSubnetWhitelistEnabled = pref->isWebUiAuthSubnetWhitelistEnabled();
     m_authSubnetWhitelist = pref->getWebUiAuthSubnetWhitelist();
+    m_sessionTimeout = pref->getWebUISessionTimeout();
 
     m_domainList = pref->getServerDomains().split(';', QString::SkipEmptyParts);
     std::for_each(m_domainList.begin(), m_domainList.end(), [](QString &entry) { entry = entry.trimmed(); });
@@ -370,11 +368,10 @@ void WebApplication::sendFile(const QString &path)
     const QDateTime lastModified {QFileInfo(path).lastModified()};
 
     // find translated file in cache
-    auto it = m_translatedFiles.constFind(path);
-    if ((it != m_translatedFiles.constEnd()) && (lastModified <= (*it).lastModified)) {
-        const QString mimeName {QMimeDatabase().mimeTypeForFileNameAndData(path, (*it).data).name()};
-        print((*it).data, mimeName);
-        header(Http::HEADER_CACHE_CONTROL, getCachingInterval(mimeName));
+    const auto it = m_translatedFiles.constFind(path);
+    if ((it != m_translatedFiles.constEnd()) && (lastModified <= it->lastModified)) {
+        print(it->data, it->mimeType);
+        header(Http::HEADER_CACHE_CONTROL, getCachingInterval(it->mimeType));
         return;
     }
 
@@ -402,7 +399,7 @@ void WebApplication::sendFile(const QString &path)
         translateDocument(dataStr);
         data = dataStr.toUtf8();
 
-        m_translatedFiles[path] = {data, lastModified}; // caching translated file
+        m_translatedFiles[path] = {data, mimeType.name(), lastModified}; // caching translated file
     }
 
     print(data, mimeType.name());
@@ -474,8 +471,7 @@ void WebApplication::sessionInitialize()
     if (!sessionId.isEmpty()) {
         m_currentSession = m_sessions.value(sessionId);
         if (m_currentSession) {
-            const qint64 now = QDateTime::currentMSecsSinceEpoch() / 1000;
-            if ((now - m_currentSession->m_timestamp) > INACTIVE_TIME) {
+            if (m_currentSession->hasExpired(m_sessionTimeout)) {
                 // session is outdated - removing it
                 delete m_sessions.take(sessionId);
                 m_currentSession = nullptr;
@@ -526,12 +522,15 @@ void WebApplication::sessionStart()
     Q_ASSERT(!m_currentSession);
 
     // remove outdated sessions
-    const qint64 now = QDateTime::currentMSecsSinceEpoch() / 1000;
-    const QHash<QString, WebSession *> sessionsCopy {m_sessions};
-    for (const auto session : sessionsCopy) {
-        if ((now - session->timestamp()) > INACTIVE_TIME)
-            delete m_sessions.take(session->id());
-    }
+    Algorithm::removeIf(m_sessions, [this](const QString &, const WebSession *session)
+    {
+        if (session->hasExpired(m_sessionTimeout)) {
+            delete session;
+            return true;
+        }
+
+        return false;
+    });
 
     m_currentSession = new WebSession(generateSid());
     m_sessions[m_currentSession->id()] = m_currentSession;
@@ -650,9 +649,16 @@ QString WebSession::id() const
     return m_sid;
 }
 
-qint64 WebSession::timestamp() const
+bool WebSession::hasExpired(const qint64 seconds) const
 {
-    return m_timestamp;
+    if (seconds <= 0)
+        return false;
+    return m_timer.hasExpired(seconds * 1000);
+}
+
+void WebSession::updateTimestamp()
+{
+    m_timer.start();
 }
 
 QVariant WebSession::getData(const QString &id) const
@@ -663,9 +669,4 @@ QVariant WebSession::getData(const QString &id) const
 void WebSession::setData(const QString &id, const QVariant &data)
 {
     m_data[id] = data;
-}
-
-void WebSession::updateTimestamp()
-{
-    m_timestamp = QDateTime::currentMSecsSinceEpoch() / 1000;
 }
