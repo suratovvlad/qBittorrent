@@ -303,7 +303,7 @@ qlonglong TorrentHandle::totalSize() const
     return m_torrentInfo.totalSize();
 }
 
-// get the size of the torrent without the filtered files
+// size without the "don't download" files
 qlonglong TorrentHandle::wantedSize() const
 {
     return m_nativeStatus.total_wanted;
@@ -569,7 +569,7 @@ bool TorrentHandle::needSaveResumeData() const
 
 void TorrentHandle::saveResumeData()
 {
-    m_nativeHandle.save_resume_data(lt::torrent_handle::save_info_dict);
+    m_nativeHandle.save_resume_data();
     m_session->handleTorrentSaveResumeDataRequested(this);
 }
 
@@ -899,7 +899,10 @@ TorrentState TorrentHandle::state() const
 
 void TorrentHandle::updateState()
 {
-    if (m_nativeStatus.state == lt::torrent_status::checking_resume_data) {
+    if (hasError()) {
+        m_state = TorrentState::Error;
+    }
+    else if (m_nativeStatus.state == lt::torrent_status::checking_resume_data) {
         m_state = TorrentState::CheckingResumeData;
     }
     else if (isMoveInProgress()) {
@@ -908,8 +911,6 @@ void TorrentHandle::updateState()
     else if (isPaused()) {
         if (hasMissingFiles())
             m_state = TorrentState::MissingFiles;
-        else if (hasError())
-            m_state = TorrentState::Error;
         else
             m_state = isSeed() ? TorrentState::PausedUploading : TorrentState::PausedDownloading;
     }
@@ -961,12 +962,7 @@ bool TorrentHandle::hasMissingFiles() const
 
 bool TorrentHandle::hasError() const
 {
-#if (LIBTORRENT_VERSION_NUM < 10200)
-    return (m_nativeStatus.paused && m_nativeStatus.errc);
-#else
-    return ((m_nativeStatus.flags & lt::torrent_flags::paused)
-            && m_nativeStatus.errc);
-#endif
+    return static_cast<bool>(m_nativeStatus.errc);
 }
 
 bool TorrentHandle::hasFilteredPieces() const
@@ -1031,7 +1027,7 @@ qlonglong TorrentHandle::seedingTime() const
 #endif
 }
 
-qulonglong TorrentHandle::eta() const
+qlonglong TorrentHandle::eta() const
 {
     if (isPaused()) return MAX_ETA;
 
@@ -1399,21 +1395,22 @@ void TorrentHandle::forceDHTAnnounce()
 
 void TorrentHandle::forceRecheck()
 {
-    if (m_startupState != Started) return;
     if (!hasMetadata()) return;
 
     m_nativeHandle.force_recheck();
     m_unchecked = false;
 
-    if (isPaused()) {
+    if ((m_startupState != Started) || isPaused()) {
 #if (LIBTORRENT_VERSION_NUM < 10200)
         m_nativeHandle.stop_when_ready(true);
 #else
         m_nativeHandle.set_flags(lt::torrent_flags::stop_when_ready);
 #endif
         setAutoManaged(true);
-        m_pauseWhenReady = true;
     }
+
+    if ((m_startupState == Started) && isPaused())
+        m_pauseWhenReady = true;
 }
 
 void TorrentHandle::setSequentialDownload(const bool enable)
@@ -1497,30 +1494,31 @@ void TorrentHandle::toggleFirstLastPiecePriority()
 
 void TorrentHandle::pause()
 {
-    if (m_startupState != Started) return;
-    if (m_pauseWhenReady) return;
-    if (isChecking()) {
-        m_pauseWhenReady = true;
-        return;
-    }
-
     if (isPaused()) return;
 
     setAutoManaged(false);
     m_nativeHandle.pause();
 
-    // Libtorrent doesn't emit a torrent_paused_alert when the
-    // torrent is queued (no I/O)
-    // We test on the cached m_nativeStatus
-    if (isQueued())
-        m_session->handleTorrentPaused(this);
+    if (m_startupState == Started) {
+        if (m_pauseWhenReady) {
+#if (LIBTORRENT_VERSION_NUM < 10200)
+            m_nativeHandle.stop_when_ready(false);
+#else
+            m_nativeHandle.unset_flags(lt::torrent_flags::stop_when_ready);
+#endif
+            m_pauseWhenReady = false;
+        }
+
+        // Libtorrent doesn't emit a torrent_paused_alert when the
+        // torrent is queued (no I/O)
+        // We test on the cached m_nativeStatus
+        if (isQueued())
+            m_session->handleTorrentPaused(this);
+    }
 }
 
 void TorrentHandle::resume(bool forced)
 {
-    if (m_startupState != Started) return;
-
-    m_pauseWhenReady = false;
     resume_impl(forced);
 }
 

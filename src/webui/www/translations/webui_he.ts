@@ -5,7 +5,7 @@
     <name>AboutDlg</name>
     <message>
         <source>About</source>
-        <translation>אודות</translation>
+        <translation type="vanished">אודות</translation>
     </message>
 </context>
 <context>
@@ -293,10 +293,6 @@
         <translation>לקוח qBittorrent בלתי נגיש</translation>
     </message>
     <message>
-        <source>qBittorrent has been shutdown.</source>
-        <translation type="vanished">qBittorrent כובה.</translation>
-    </message>
-    <message>
         <source>Global number of upload slots limit must be greater than 0 or disabled.</source>
         <translation>מספר עולמי של מגבלת חריצי העלאה חייב להיות גדול מ־0 או מושבת.</translation>
     </message>
@@ -334,7 +330,23 @@
     </message>
     <message>
         <source>qBittorrent has been shutdown</source>
-        <translation type="unfinished" />
+        <translation>qBittorrent כובה</translation>
+    </message>
+    <message>
+        <source>Open documentation</source>
+        <translation>פתח תיעוד</translation>
+    </message>
+    <message>
+        <source>Register to handle magnet links...</source>
+        <translation>הירשם כדי לטפל בקישורי מגנט…</translation>
+    </message>
+    <message>
+        <source>Unable to add peers. Please ensure you are adhering to the IP:port format.</source>
+        <translation>לא היה ניתן להוסיף עמיתים. אנא וודא שאתה דובק בתסדיר IP:פתחה.</translation>
+    </message>
+    <message>
+        <source>JavaScript Required! You must enable JavaScript for the Web UI to work properly</source>
+        <translation>JavaScript דרוש! אתה חייב לאפשר JavaScript כדי שממשק הרשת יעבוד כראוי</translation>
     </message>
 </context>
 <context>
@@ -366,22 +378,6 @@
     <message>
         <source>Resume</source>
         <translation>המשך</translation>
-    </message>
-    <message>
-        <source>Minimum Priority</source>
-        <translation>עדיפות מזערית</translation>
-    </message>
-    <message>
-        <source>Top Priority</source>
-        <translation>עדיפות עליונה</translation>
-    </message>
-    <message>
-        <source>Decrease Priority</source>
-        <translation>הפחת עדיפות</translation>
-    </message>
-    <message>
-        <source>Increase Priority</source>
-        <translation>הגבר עדיפות</translation>
     </message>
     <message>
         <source>Top Toolbar</source>
@@ -480,6 +476,38 @@
         <source>Transfers</source>
         <translation>העברות</translation>
     </message>
+    <message>
+        <source>Move up in the queue</source>
+        <translation>הזז למעלה בתור</translation>
+    </message>
+    <message>
+        <source>Move Up Queue</source>
+        <translation>הזז למעלה בתור</translation>
+    </message>
+    <message>
+        <source>Bottom of Queue</source>
+        <translation>תחתית התור</translation>
+    </message>
+    <message>
+        <source>Move to the bottom of the queue</source>
+        <translation>הזז אל תחתית התור</translation>
+    </message>
+    <message>
+        <source>Top of Queue</source>
+        <translation>ראש התור</translation>
+    </message>
+    <message>
+        <source>Move Down Queue</source>
+        <translation>הזז למטה בתור</translation>
+    </message>
+    <message>
+        <source>Move down in the queue</source>
+        <translation>הזז למטה בתור</translation>
+    </message>
+    <message>
+        <source>Move to the top of the queue</source>
+        <translation>הזז אל ראש התור</translation>
+    </message>
 </context>
 <context>
     <name>OptionsDialog</name>
@@ -534,10 +562,6 @@
     <message>
         <source>Torrent Queueing</source>
         <translation>תור טורנטים</translation>
-    </message>
-    <message>
-        <source>Seed torrents until their seeding time reaches</source>
-        <translation>זרע טורנטים עד שזמן זריעתם מגיע אל</translation>
     </message>
     <message>
         <source>Automatically add these trackers to new downloads:</source>
@@ -696,10 +720,6 @@
         <translation>השתמש בייפוי כוח עבור חיבורי עמיתים</translation>
     </message>
     <message>
-        <source>Disable connections not supported by proxies</source>
-        <translation>השבת חיבורים שאינם נתמכים ע"י ייפויי כוח</translation>
-    </message>
-    <message>
         <source>Use proxy only for torrents</source>
         <translation>השתמש בייפוי כוח רק לטורנטים</translation>
     </message>
@@ -790,10 +810,6 @@
         <translation>מצב הצפנה:</translation>
     </message>
     <message>
-        <source>Prefer encryption</source>
-        <translation>העדף הצפנה</translation>
-    </message>
-    <message>
         <source>Require encryption</source>
         <translation>דרוש הצפנה</translation>
     </message>
@@ -822,24 +838,8 @@
         <translation>אל תחשיב טורנטים איטיים במגבלות אלו</translation>
     </message>
     <message>
-        <source>Share Ratio Limiting</source>
-        <translation>הגבלת יחס שיתוף</translation>
-    </message>
-    <message>
-        <source>Seed torrents until their ratio reaches</source>
-        <translation>זרע טורנטים עד שיחסם מגיע אל</translation>
-    </message>
-    <message>
         <source>then</source>
         <translation>לאחר מכן</translation>
-    </message>
-    <message>
-        <source>Pause them</source>
-        <translation>השהה אותם</translation>
-    </message>
-    <message>
-        <source>Remove them</source>
-        <translation>הסר אותם</translation>
     </message>
     <message>
         <source>Use UPnP / NAT-PMP to forward the port from my router</source>
@@ -872,10 +872,6 @@
     <message>
         <source>%L: Category</source>
         <translation>%L: מדור</translation>
-    </message>
-    <message>
-        <source>%G: Tags (seperated by comma)</source>
-        <translation>%G: תגיות (מופרדות ע"י פסיק)</translation>
     </message>
     <message>
         <source>%F: Content path (same as root path for multifile torrent)</source>
@@ -1041,6 +1037,234 @@
         <source>When adding a torrent</source>
         <translation>בעת הוספת טורנט</translation>
     </message>
+    <message>
+        <source>Info: The password is saved unencrypted</source>
+        <translation>מידע: הסיסמה נשמרת באופן בלתי מוצפן</translation>
+    </message>
+    <message>
+        <source>Strict super seeding:</source>
+        <translation>זריעה קפדנית־על</translation>
+    </message>
+    <message>
+        <source>μTP-TCP mixed mode algorithm:</source>
+        <translation>אלגוריתם מצב משולב μTP-TCP:</translation>
+    </message>
+    <message>
+        <source>Upload rate based</source>
+        <translation>מבוסס קצב העלאה</translation>
+    </message>
+    <message>
+        <source>%G: Tags (separated by comma)</source>
+        <translation>%G: תגיות (מופרדות ע״י פסיק)</translation>
+    </message>
+    <message>
+        <source>Socket backlog size:</source>
+        <translation>גודל מצבור תושבת:</translation>
+    </message>
+    <message>
+        <source>Enable super seeding for torrent</source>
+        <translation>אפשר זריעת־על עבור טורנט</translation>
+    </message>
+    <message>
+        <source>Prefer TCP</source>
+        <translation>העדף TCP</translation>
+    </message>
+    <message>
+        <source>Outstanding memory when checking torrents:</source>
+        <translation>זיכרון חריג בעת בדיקת טורנטים:</translation>
+    </message>
+    <message>
+        <source>Anti-leech</source>
+        <translation>נגד־עלוקה</translation>
+    </message>
+    <message>
+        <source>Enable OS cache:</source>
+        <translation>אפשר מטמון OS:</translation>
+    </message>
+    <message>
+        <source>When ratio reaches</source>
+        <translation>כאשר יחס מגיע אל</translation>
+    </message>
+    <message>
+        <source>sec</source>
+        <translation>שניות</translation>
+    </message>
+    <message>
+        <source>When seeding time reaches</source>
+        <translation>כאשר זמן זריעה מגיע אל</translation>
+    </message>
+    <message>
+        <source>Allow multiple connections from the same IP address:</source>
+        <translation>אפשר חיבורים רבים מאותה כתובת IP:</translation>
+    </message>
+    <message>
+        <source>File pool size:</source>
+        <translation>גודל בריכת קבצים:</translation>
+    </message>
+    <message>
+        <source>Any interface</source>
+        <translation>כל ממשק שהוא</translation>
+    </message>
+    <message>
+        <source>Always announce to all tiers:</source>
+        <translation>הכרז תמיד לכל הנדבכים:</translation>
+    </message>
+    <message>
+        <source>Embedded tracker port:</source>
+        <translation>פתחת גשש משובץ:</translation>
+    </message>
+    <message>
+        <source>Optional IP Address to bind to (requires restart):</source>
+        <translation>כתובת IP רשותית לחבור אליה (דורש הפעלה מחדש):</translation>
+    </message>
+    <message>
+        <source>Fastest upload</source>
+        <translation>ההעלאה הכי מהירה</translation>
+    </message>
+    <message>
+        <source>Pause torrent</source>
+        <translation>השהה טורנט</translation>
+    </message>
+    <message>
+        <source>Remove torrent and its files</source>
+        <translation>הסר טורנט ואת קבציו</translation>
+    </message>
+    <message>
+        <source>qBittorrent Section</source>
+        <translation>קטע qBittorrent</translation>
+    </message>
+    <message>
+        <source>Send buffer watermark factor:</source>
+        <translation>שלח גורם סימן מים של חוצץ:</translation>
+    </message>
+    <message>
+        <source>libtorrent Section</source>
+        <translation>קטע libtorrent</translation>
+    </message>
+    <message>
+        <source>Coalesce reads &amp; writes:</source>
+        <translation>לכד קריאות וכתיבות</translation>
+    </message>
+    <message>
+        <source>Outgoing ports (Min) [0: Disabled]:</source>
+        <translation>פתחות יוצאות (מיזער) [0: מושבת]:</translation>
+    </message>
+    <message>
+        <source>IP Address to report to trackers (requires restart):</source>
+        <translation>כתובת IP לדיווח לגששים (דורש הפעלה מחדש):</translation>
+    </message>
+    <message>
+        <source>Recheck torrents on completion:</source>
+        <translation>בדוק מחדש טורנטים בעת השלמה:</translation>
+    </message>
+    <message>
+        <source>Allow encryption</source>
+        <translation>התר הצפנה</translation>
+    </message>
+    <message>
+        <source>Send upload piece suggestions:</source>
+        <translation>שלח הצעות של חתיכות העלאה:</translation>
+    </message>
+    <message>
+        <source>Disk cache:</source>
+        <translation>מטמון דיסק:</translation>
+    </message>
+    <message>
+        <source>Enable embedded tracker:</source>
+        <translation>אפשר גשש משובץ:</translation>
+    </message>
+    <message>
+        <source>Remove torrent</source>
+        <translation>הסר טורנט</translation>
+    </message>
+    <message>
+        <source>Outgoing ports (Max) [0: Disabled]:</source>
+        <translation>פתחות יוצאות (מרב) [0: מושבת]:</translation>
+    </message>
+    <message>
+        <source>Asynchronous I/O threads:</source>
+        <translation>תהליכוני ק/פ אי־סינכרוניים:</translation>
+    </message>
+    <message>
+        <source>s</source>
+        <translation>ש'</translation>
+    </message>
+    <message>
+        <source>Send buffer watermark:</source>
+        <translation>שלח סימן מים של חוצץ:</translation>
+    </message>
+    <message>
+        <source>Disk cache expiry interval:</source>
+        <translation>מרווח תפוגת מטמון דיסק:</translation>
+    </message>
+    <message>
+        <source>Peer proportional (throttles TCP)</source>
+        <translation>יַחֲסִי עמית (משנקי TCP)</translation>
+    </message>
+    <message>
+        <source>Fixed slots</source>
+        <translation>חריצים מקובעים</translation>
+    </message>
+    <message>
+        <source>Resolve peer countries (GeoIP):</source>
+        <translation>פתור מדינות עמיתים (GeoIP):</translation>
+    </message>
+    <message>
+        <source>Advanced</source>
+        <translation>מתקדם</translation>
+    </message>
+    <message>
+        <source>min</source>
+        <translation>דק'</translation>
+    </message>
+    <message>
+        <source>Upload choking algorithm:</source>
+        <translation>אלגוריתם מחנק העלאה:</translation>
+    </message>
+    <message>
+        <source>Seeding Limits</source>
+        <translation>מגבלות זריעה</translation>
+    </message>
+    <message>
+        <source>KiB</source>
+        <translation>ק״ב</translation>
+    </message>
+    <message>
+        <source>Round-robin</source>
+        <translation>סבב־רובין</translation>
+    </message>
+    <message>
+        <source>Upload slots behavior:</source>
+        <translation>העלה התנהגות חריצים:</translation>
+    </message>
+    <message>
+        <source>Network Interface (requires restart):</source>
+        <translation>ממשק רשת (דורש הפעלה מחדש):</translation>
+    </message>
+    <message>
+        <source>MiB</source>
+        <translation>מ״ב</translation>
+    </message>
+    <message>
+        <source>Send buffer low watermark:</source>
+        <translation>שלח סימן מים נמוך של חוצץ:</translation>
+    </message>
+    <message>
+        <source>Save resume data interval:</source>
+        <translation>מרווח שמירת נתוני המשכה:</translation>
+    </message>
+    <message>
+        <source>Always announce to all trackers in a tier:</source>
+        <translation>הכרז תמיד לכל הגששים בנדבך:</translation>
+    </message>
+    <message>
+        <source>Session timeout:</source>
+        <translation>פסק זמן של שיח:</translation>
+    </message>
+    <message>
+        <source>Listen on IPv6 address (requires restart):</source>
+        <translation>האזן על כתובת IPv6 (דורש הפעלה מחדש):</translation>
+    </message>
 </context>
 <context>
     <name>PeerListWidget</name>
@@ -1104,6 +1328,22 @@
         <source>Country</source>
         <translation>מדינה</translation>
     </message>
+    <message>
+        <source>Ban peer permanently</source>
+        <translation>החרם עמית לצמיתות</translation>
+    </message>
+    <message>
+        <source>Are you sure you want to permanently ban the selected peers?</source>
+        <translation>האם אתה בטוח שאתה רוצה להחרים לצמיתות את העמיתים הנבחרים?</translation>
+    </message>
+    <message>
+        <source>Copy IP:port</source>
+        <translation>העתק IP:פתחה</translation>
+    </message>
+    <message>
+        <source>Add a new peer...</source>
+        <translation>הוסף עמית חדש…</translation>
+    </message>
 </context>
 <context>
     <name>PropListDelegate</name>
@@ -1121,6 +1361,14 @@
         <source>Maximum</source>
         <comment>Maximum (priority)</comment>
         <translation>מירב</translation>
+    </message>
+    <message>
+        <source>Mixed</source>
+        <translation>מעורבב</translation>
+    </message>
+    <message>
+        <source>Do not download</source>
+        <translation>אל תוריד</translation>
     </message>
 </context>
 <context>
@@ -1288,6 +1536,14 @@
     <message>
         <source>Upload limit:</source>
         <translation>מגבלת העלאה:</translation>
+    </message>
+    <message>
+        <source>Priority</source>
+        <translation>עדיפות</translation>
+    </message>
+    <message>
+        <source>Filter files...</source>
+        <translation>סנן קבצים...</translation>
     </message>
 </context>
 <context>
@@ -1468,31 +1724,7 @@
 </context>
 <context>
     <name>TorrentContentModel</name>
-    <message>
-        <source>Name</source>
-        <translation>שם</translation>
-    </message>
-    <message>
-        <source>Size</source>
-        <translation>גודל</translation>
-    </message>
-    <message>
-        <source>Progress</source>
-        <translation>התקדמות</translation>
-    </message>
-    <message>
-        <source>Download Priority</source>
-        <translation>עדיפות הורדה</translation>
-    </message>
-    <message>
-        <source>Remaining</source>
-        <translation>נותר</translation>
-    </message>
-    <message>
-        <source>Availability</source>
-        <translation>זמינות</translation>
-    </message>
-</context>
+    </context>
 <context>
     <name>TransferListModel</name>
     <message>
@@ -1637,6 +1869,10 @@
         <comment>i.e. Size including unwanted data</comment>
         <translation>גודל כולל</translation>
     </message>
+    <message>
+        <source>Availability</source>
+        <translation>זמינות</translation>
+    </message>
 </context>
 <context>
     <name>TrackerListWidget</name>
@@ -1681,10 +1917,6 @@
         <translation>לא נוצר קשר עדין</translation>
     </message>
     <message>
-        <source>#</source>
-        <translation>#</translation>
-    </message>
-    <message>
         <source>N/A</source>
         <translation>לא זמין</translation>
     </message>
@@ -1719,6 +1951,34 @@
     <message>
         <source>Remove tracker</source>
         <translation>הסר גשש</translation>
+    </message>
+    <message>
+        <source>Remaining</source>
+        <translation>נותר</translation>
+    </message>
+    <message>
+        <source>Availability</source>
+        <translation>זמינות</translation>
+    </message>
+    <message>
+        <source>Tier</source>
+        <translation>נדבך</translation>
+    </message>
+    <message>
+        <source>Download Priority</source>
+        <translation>עדיפות הורדה</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>שם</translation>
+    </message>
+    <message>
+        <source>Progress</source>
+        <translation>התקדמות</translation>
+    </message>
+    <message>
+        <source>Size</source>
+        <translation>גודל</translation>
     </message>
 </context>
 <context>
@@ -1814,6 +2074,10 @@
         <source>Categories</source>
         <translation>מדורים</translation>
     </message>
+    <message>
+        <source>Tags</source>
+        <translation>תגיות</translation>
+    </message>
 </context>
 <context>
     <name>TransferListWidget</name>
@@ -1886,14 +2150,6 @@
         <translation>הגדר מיקום...</translation>
     </message>
     <message>
-        <source>Copy name</source>
-        <translation>העתק שם</translation>
-    </message>
-    <message>
-        <source>Copy hash</source>
-        <translation>העתק גיבוב</translation>
-    </message>
-    <message>
         <source>Download first and last pieces first</source>
         <translation>הורד חתיכה ראשונה ואחרונה תחילה</translation>
     </message>
@@ -1916,16 +2172,8 @@
         <translation>אפס</translation>
     </message>
     <message>
-        <source>Priority</source>
-        <translation>עדיפות</translation>
-    </message>
-    <message>
         <source>Force recheck</source>
         <translation>אלץ בדיקה חוזרת</translation>
-    </message>
-    <message>
-        <source>Copy magnet link</source>
-        <translation>העתק קישור מגנט</translation>
     </message>
     <message>
         <source>Super seeding mode</source>
@@ -1971,6 +2219,46 @@
         <source>Save path</source>
         <translation>נתיב שמירה</translation>
     </message>
+    <message>
+        <source>Comma-separated tags:</source>
+        <translation>תגיות מופרדות פסיקים:</translation>
+    </message>
+    <message>
+        <source>Add Tags</source>
+        <translation>הוסף תגיות</translation>
+    </message>
+    <message>
+        <source>Tags</source>
+        <translation>תגיות</translation>
+    </message>
+    <message>
+        <source>Magnet link</source>
+        <translation>קישור מגנט</translation>
+    </message>
+    <message>
+        <source>Hash</source>
+        <translation>גיבוב</translation>
+    </message>
+    <message>
+        <source>Remove All</source>
+        <translation>הסר הכל</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>שם</translation>
+    </message>
+    <message>
+        <source>Copy</source>
+        <translation>העתק</translation>
+    </message>
+    <message>
+        <source>Queue</source>
+        <translation>תור</translation>
+    </message>
+    <message>
+        <source>Add...</source>
+        <translation>הוסף…</translation>
+    </message>
 </context>
 <context>
     <name>UpDownRatioDialog</name>
@@ -2001,23 +2289,7 @@
 </context>
 <context>
     <name>about</name>
-    <message>
-        <source>An advanced BitTorrent client programmed in C++, based on Qt toolkit and libtorrent-rasterbar.</source>
-        <translation>לקוח BitTorrent מתקדם המתוכנת ב-C++, מבוסס על ערכת כלים Qt ו-libtorrent-rasterbar.</translation>
-    </message>
-    <message>
-        <source>Home Page:</source>
-        <translation>דף הבית:</translation>
-    </message>
-    <message>
-        <source>Forum:</source>
-        <translation>קבוצת דיון:</translation>
-    </message>
-    <message>
-        <source>Bug Tracker:</source>
-        <translation>גשש תקלים:</translation>
-    </message>
-</context>
+    </context>
 <context>
     <name>confirmDeletionDlg</name>
     <message>
@@ -2181,20 +2453,8 @@
         <translation>חפש ב:</translation>
     </message>
     <message>
-        <source>Copy description page URL</source>
-        <translation>העתק את כתובת דף התיאור</translation>
-    </message>
-    <message>
-        <source>Go to description page</source>
-        <translation>עבור לדף התיאור</translation>
-    </message>
-    <message>
         <source>Results (showing</source>
         <translation>תוצאות (מראה</translation>
-    </message>
-    <message>
-        <source>Download</source>
-        <translation>הורד</translation>
     </message>
     <message>
         <source>Filter</source>
@@ -2296,6 +2556,184 @@
     <message>
         <source>Version</source>
         <translation>גרסה</translation>
+    </message>
+</context>
+<context>
+    <name>PeersAdditionDialog</name>
+    <message>
+        <source>Cancel</source>
+        <translation>בטל</translation>
+    </message>
+    <message>
+        <source>Add Peers</source>
+        <translation>הוסף עמיתים</translation>
+    </message>
+    <message>
+        <source>List of peers to add (one IP per line):</source>
+        <translation>רשימת עמיתים להוספה (IP אחד לשורה):</translation>
+    </message>
+    <message>
+        <source>Ok</source>
+        <translation>אשר</translation>
+    </message>
+    <message>
+        <source>Format: IPv4:port / [IPv6]:port</source>
+        <translation>תסדיר: IPv4:פתחה / [IPv6]:פתחה</translation>
+    </message>
+</context>
+<context>
+    <name>TagFilterWidget</name>
+    <message>
+        <source>New Tag</source>
+        <translation>תגית חדשה</translation>
+    </message>
+    <message>
+        <source>Add tag...</source>
+        <translation>הוסף תגית…</translation>
+    </message>
+    <message>
+        <source>Delete torrents</source>
+        <translation>מחק טורנטים</translation>
+    </message>
+    <message>
+        <source>Tag:</source>
+        <translation>תגית:</translation>
+    </message>
+    <message>
+        <source>Pause torrents</source>
+        <translation>השהה טורנטים</translation>
+    </message>
+    <message>
+        <source>Resume torrents</source>
+        <translation>המשך טורנטים</translation>
+    </message>
+    <message>
+        <source>Remove unused tags</source>
+        <translation>הסר תגיות שאינן בשימוש</translation>
+    </message>
+    <message>
+        <source>Invalid tag name</source>
+        <translation>שם תגית בלתי תקף</translation>
+    </message>
+    <message>
+        <source>Remove tag</source>
+        <translation>הסר תגית</translation>
+    </message>
+</context>
+<context>
+    <name>TagFilterModel</name>
+    <message>
+        <source>All</source>
+        <translation>הכל</translation>
+    </message>
+    <message>
+        <source>Untagged</source>
+        <translation>חסר־תגית</translation>
+    </message>
+</context>
+<context>
+    <name>AboutDialog</name>
+    <message>
+        <source>Bug Tracker:</source>
+        <translation>גשש תקלים:</translation>
+    </message>
+    <message>
+        <source>About</source>
+        <translation>אודות</translation>
+    </message>
+    <message>
+        <source>Forum:</source>
+        <translation>קבוצת דיון:</translation>
+    </message>
+    <message>
+        <source>E-mail:</source>
+        <translation>דוא״ל:</translation>
+    </message>
+    <message>
+        <source>Current maintainer</source>
+        <translation>מתחזק נוכחי</translation>
+    </message>
+    <message>
+        <source>Home Page:</source>
+        <translation>דף הבית:</translation>
+    </message>
+    <message>
+        <source>Greece</source>
+        <translation>יוון</translation>
+    </message>
+    <message>
+        <source>Special Thanks</source>
+        <translation>תודות מיוחדות</translation>
+    </message>
+    <message>
+        <source>An advanced BitTorrent client programmed in C++, based on Qt toolkit and libtorrent-rasterbar.</source>
+        <translation>לקוח BitTorrent מתקדם המתוכנת ב־C++, מבוסס על ערכת כלים Qt ו־libtorrent-rasterbar.</translation>
+    </message>
+    <message>
+        <source>Name:</source>
+        <translation>שם:</translation>
+    </message>
+    <message>
+        <source>About qBittorrent</source>
+        <translation>אודות qBittorrent</translation>
+    </message>
+    <message>
+        <source>Libraries</source>
+        <translation>סיפריות</translation>
+    </message>
+    <message>
+        <source>License</source>
+        <translation>רישיון</translation>
+    </message>
+    <message>
+        <source>Translators</source>
+        <translation>מתרגמים</translation>
+    </message>
+    <message>
+        <source>qBittorrent was built with the following libraries:</source>
+        <translation>qBittorrent נבנה עם הסיפריות הבאות:</translation>
+    </message>
+    <message>
+        <source>Nationality:</source>
+        <translation>לאום:</translation>
+    </message>
+    <message>
+        <source>Author</source>
+        <translation>מחבר</translation>
+    </message>
+</context>
+<context>
+    <name>OptionDialog</name>
+    <message>
+        <source>All addresses</source>
+        <translation>כל הכתובות</translation>
+    </message>
+</context>
+<context>
+    <name>SearchJobWidget</name>
+    <message>
+        <source>Copy</source>
+        <translation>העתק</translation>
+    </message>
+    <message>
+        <source>Download</source>
+        <translation>הורד</translation>
+    </message>
+    <message>
+        <source>Name</source>
+        <translation>שם</translation>
+    </message>
+    <message>
+        <source>Description page URL</source>
+        <translation>כתובת של דף תיאור</translation>
+    </message>
+    <message>
+        <source>Open description page</source>
+        <translation>פתח דף תיאור</translation>
+    </message>
+    <message>
+        <source>Download link</source>
+        <translation>קישור הורדה</translation>
     </message>
 </context>
 </TS>

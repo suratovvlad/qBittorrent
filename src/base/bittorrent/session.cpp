@@ -97,10 +97,6 @@
 #include "tracker.h"
 #include "trackerentry.h"
 
-#if defined(Q_OS_WIN) && (_WIN32_WINNT < 0x0600)
-using NETIO_STATUS = LONG;
-#endif
-
 static const char PEER_ID[] = "qB";
 static const char RESUME_FOLDER[] = "BT_backup";
 static const char USER_AGENT[] = "qBittorrent/" QBT_VERSION_2;
@@ -125,17 +121,126 @@ namespace
     using LTString = lt::string_view;
 #endif
 
-    bool readFile(const QString &path, QByteArray &buf);
-    bool loadTorrentResumeData(const QByteArray &data, CreateTorrentParams &torrentParams, int &queuePos, MagnetUri &magnetUri);
+    template <typename LTStr>
+    QString fromLTString(const LTStr &str)
+    {
+        return QString::fromUtf8(str.data(), static_cast<int>(str.size()));
+    }
 
-    void torrentQueuePositionUp(const lt::torrent_handle &handle);
-    void torrentQueuePositionDown(const lt::torrent_handle &handle);
-    void torrentQueuePositionTop(const lt::torrent_handle &handle);
-    void torrentQueuePositionBottom(const lt::torrent_handle &handle);
+    bool readFile(const QString &path, QByteArray &buf)
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) {
+            qDebug("Cannot read file %s: %s", qUtf8Printable(path), qUtf8Printable(file.errorString()));
+            return false;
+        }
 
-#ifdef Q_OS_WIN
-    QString convertIfaceNameToGuid(const QString &name);
+        buf = file.readAll();
+        return true;
+    }
+
+    bool loadTorrentResumeData(const QByteArray &data, CreateTorrentParams &torrentParams, int &queuePos, MagnetUri &magnetUri)
+    {
+        lt::error_code ec;
+#if (LIBTORRENT_VERSION_NUM < 10200)
+        lt::bdecode_node root;
+        lt::bdecode(data.constData(), (data.constData() + data.size()), root, ec);
+#else
+        const lt::bdecode_node root = lt::bdecode(data, ec);
 #endif
+        if (ec || (root.type() != lt::bdecode_node::dict_t)) return false;
+
+        torrentParams = CreateTorrentParams();
+
+        torrentParams.restored = true;
+        torrentParams.skipChecking = false;
+        torrentParams.name = fromLTString(root.dict_find_string_value("qBt-name"));
+        torrentParams.savePath = Profile::instance().fromPortablePath(
+            Utils::Fs::toUniformPath(fromLTString(root.dict_find_string_value("qBt-savePath"))));
+        torrentParams.disableTempPath = root.dict_find_int_value("qBt-tempPathDisabled");
+        torrentParams.sequential = root.dict_find_int_value("qBt-sequential");
+        torrentParams.hasSeedStatus = root.dict_find_int_value("qBt-seedStatus");
+        torrentParams.firstLastPiecePriority = root.dict_find_int_value("qBt-firstLastPiecePriority");
+        torrentParams.hasRootFolder = root.dict_find_int_value("qBt-hasRootFolder");
+        torrentParams.seedingTimeLimit = root.dict_find_int_value("qBt-seedingTimeLimit", TorrentHandle::USE_GLOBAL_SEEDING_TIME);
+
+        const bool isAutoManaged = root.dict_find_int_value("auto_managed");
+        const bool isPaused = root.dict_find_int_value("paused");
+        torrentParams.paused = root.dict_find_int_value("qBt-paused", (isPaused && !isAutoManaged));
+        torrentParams.forced = root.dict_find_int_value("qBt-forced", (!isPaused && !isAutoManaged));
+
+        const LTString ratioLimitString = root.dict_find_string_value("qBt-ratioLimit");
+        if (ratioLimitString.empty())
+            torrentParams.ratioLimit = root.dict_find_int_value("qBt-ratioLimit", TorrentHandle::USE_GLOBAL_RATIO * 1000) / 1000.0;
+        else
+            torrentParams.ratioLimit = fromLTString(ratioLimitString).toDouble();
+
+        // **************************************************************************************
+        // Workaround to convert legacy label to category
+        // TODO: Should be removed in future
+        torrentParams.category = fromLTString(root.dict_find_string_value("qBt-label"));
+        if (torrentParams.category.isEmpty())
+        // **************************************************************************************
+            torrentParams.category = fromLTString(root.dict_find_string_value("qBt-category"));
+
+        const lt::bdecode_node tagsNode = root.dict_find("qBt-tags");
+        if (tagsNode.type() == lt::bdecode_node::list_t) {
+            for (int i = 0; i < tagsNode.list_size(); ++i) {
+                const QString tag = fromLTString(tagsNode.list_string_value_at(i));
+                if (Session::isValidTag(tag))
+                    torrentParams.tags << tag;
+            }
+        }
+
+        const lt::bdecode_node addedTimeNode = root.dict_find("qBt-addedTime");
+        if (addedTimeNode.type() == lt::bdecode_node::int_t)
+            torrentParams.addedTime = QDateTime::fromSecsSinceEpoch(addedTimeNode.int_value());
+
+        queuePos = root.dict_find_int_value("qBt-queuePosition");
+        magnetUri = MagnetUri(fromLTString(root.dict_find_string_value("qBt-magnetUri")));
+
+        return true;
+    }
+
+    void torrentQueuePositionUp(const lt::torrent_handle &handle)
+    {
+        try {
+            handle.queue_position_up();
+        }
+        catch (const std::exception &exc) {
+            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
+        }
+    }
+
+    void torrentQueuePositionDown(const lt::torrent_handle &handle)
+    {
+        try {
+            handle.queue_position_down();
+        }
+        catch (const std::exception &exc) {
+            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
+        }
+    }
+
+    void torrentQueuePositionTop(const lt::torrent_handle &handle)
+    {
+        try {
+            handle.queue_position_top();
+        }
+        catch (const std::exception &exc) {
+            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
+        }
+    }
+
+    void torrentQueuePositionBottom(const lt::torrent_handle &handle)
+    {
+        try {
+            handle.queue_position_bottom();
+        }
+        catch (const std::exception &exc) {
+            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
+        }
+    }
 
     QStringMap map_cast(const QVariantMap &map)
     {
@@ -151,12 +256,6 @@ namespace
         for (auto i = map.cbegin(); i != map.cend(); ++i)
             result[i.key()] = i.value();
         return result;
-    }
-
-    template <typename LTStr>
-    QString fromLTString(const LTStr &str)
-    {
-        return QString::fromUtf8(str.data(), static_cast<int>(str.size()));
     }
 
     QString normalizePath(const QString &path)
@@ -234,6 +333,26 @@ namespace
             return value;
         };
     }
+
+#ifdef Q_OS_WIN
+    QString convertIfaceNameToGuid(const QString &name)
+    {
+        // Under Windows XP or on Qt version <= 5.5 'name' will be a GUID already.
+        const QUuid uuid(name);
+        if (!uuid.isNull())
+            return uuid.toString().toUpper(); // Libtorrent expects the GUID in uppercase
+
+        NET_LUID luid {};
+        const LONG res = ::ConvertInterfaceNameToLuidW(name.toStdWString().c_str(), &luid);
+        if (res == 0) {
+            GUID guid;
+            if (::ConvertInterfaceLuidToGuid(&luid, &guid) == 0)
+                return QUuid(guid).toString().toUpper();
+        }
+
+        return {};
+    }
+#endif
 }
 
 // Session
@@ -1940,20 +2059,12 @@ bool Session::addTorrent_impl(CreateTorrentParams params, const MagnetUri &magne
                 , (patchedFastresumeData.constData() + patchedFastresumeData.size())};
             p.flags |= lt::add_torrent_params::flag_use_resume_save_path;
 
-            // load from .torrent file when fastresume doesn't contain the required `info` dict
-            if (!patchedFastresumeData.contains("4:infod"))
-                p.ti = torrentInfo.nativeInfo();
-
             // Still setup the default parameters and let libtorrent handle
             // the parameter merging
             hasCompleteFastresume = false;
 #else
             lt::error_code ec;
             p = lt::read_resume_data(fastresumeData, ec);
-
-            // load from .torrent file when fastresume doesn't contain the required `info` dict
-            if (!p.ti || !p.ti->is_valid())
-                p.ti = torrentInfo.nativeInfo();
 
             // libtorrent will always apply `file_priorities` to torrents,
             // if the field is present then the fastresume is considered to
@@ -1991,9 +2102,9 @@ bool Session::addTorrent_impl(CreateTorrentParams params, const MagnetUri &magne
                             static_cast<lt::download_priority_t::underlying_type>(priority));
 #endif
             });
-
-            p.ti = torrentInfo.nativeInfo();
         }
+
+        p.ti = torrentInfo.nativeInfo();
     }
 
     // Common
@@ -2388,15 +2499,20 @@ int Session::globalDownloadSpeedLimit() const
     return m_globalDownloadSpeedLimit * 1024;
 }
 
-void Session::setGlobalDownloadSpeedLimit(int limit)
+void Session::setGlobalDownloadSpeedLimit(const int limit)
 {
     // Unfortunately the value was saved as KiB instead of B.
     // But it is better to pass it around internally(+ webui) as Bytes.
-    limit /= 1024;
-    if (limit < 0) limit = 0;
-    if (limit == globalDownloadSpeedLimit()) return;
+    if (limit == globalDownloadSpeedLimit())
+        return;
 
-    m_globalDownloadSpeedLimit = limit;
+    if (limit <= 0)
+        m_globalDownloadSpeedLimit = 0;
+    else if (limit <= 1024)
+        m_globalDownloadSpeedLimit = 1;
+    else
+        m_globalDownloadSpeedLimit = (limit / 1024);
+
     if (!isAltGlobalSpeedLimitEnabled())
         configureDeferred();
 }
@@ -2408,15 +2524,20 @@ int Session::globalUploadSpeedLimit() const
     return m_globalUploadSpeedLimit * 1024;
 }
 
-void Session::setGlobalUploadSpeedLimit(int limit)
+void Session::setGlobalUploadSpeedLimit(const int limit)
 {
     // Unfortunately the value was saved as KiB instead of B.
     // But it is better to pass it around internally(+ webui) as Bytes.
-    limit /= 1024;
-    if (limit < 0) limit = 0;
-    if (limit == globalUploadSpeedLimit()) return;
+    if (limit == globalUploadSpeedLimit())
+        return;
 
-    m_globalUploadSpeedLimit = limit;
+    if (limit <= 0)
+        m_globalUploadSpeedLimit = 0;
+    else if (limit <= 1024)
+        m_globalUploadSpeedLimit = 1;
+    else
+        m_globalUploadSpeedLimit = (limit / 1024);
+
     if (!isAltGlobalSpeedLimitEnabled())
         configureDeferred();
 }
@@ -2428,15 +2549,20 @@ int Session::altGlobalDownloadSpeedLimit() const
     return m_altGlobalDownloadSpeedLimit * 1024;
 }
 
-void Session::setAltGlobalDownloadSpeedLimit(int limit)
+void Session::setAltGlobalDownloadSpeedLimit(const int limit)
 {
     // Unfortunately the value was saved as KiB instead of B.
     // But it is better to pass it around internally(+ webui) as Bytes.
-    limit /= 1024;
-    if (limit < 0) limit = 0;
-    if (limit == altGlobalDownloadSpeedLimit()) return;
+    if (limit == altGlobalDownloadSpeedLimit())
+        return;
 
-    m_altGlobalDownloadSpeedLimit = limit;
+    if (limit <= 0)
+        m_altGlobalDownloadSpeedLimit = 0;
+    else if (limit <= 1024)
+        m_altGlobalDownloadSpeedLimit = 1;
+    else
+        m_altGlobalDownloadSpeedLimit = (limit / 1024);
+
     if (isAltGlobalSpeedLimitEnabled())
         configureDeferred();
 }
@@ -2448,15 +2574,20 @@ int Session::altGlobalUploadSpeedLimit() const
     return m_altGlobalUploadSpeedLimit * 1024;
 }
 
-void Session::setAltGlobalUploadSpeedLimit(int limit)
+void Session::setAltGlobalUploadSpeedLimit(const int limit)
 {
     // Unfortunately the value was saved as KiB instead of B.
     // But it is better to pass it around internally(+ webui) as Bytes.
-    limit /= 1024;
-    if (limit < 0) limit = 0;
-    if (limit == altGlobalUploadSpeedLimit()) return;
+    if (limit == altGlobalUploadSpeedLimit())
+        return;
 
-    m_altGlobalUploadSpeedLimit = limit;
+    if (limit <= 0)
+        m_altGlobalUploadSpeedLimit = 0;
+    else if (limit <= 1024)
+        m_altGlobalUploadSpeedLimit = 1;
+    else
+        m_altGlobalUploadSpeedLimit = (limit / 1024);
+
     if (isAltGlobalSpeedLimitEnabled())
         configureDeferred();
 }
@@ -2789,6 +2920,13 @@ void Session::applyOSMemoryPriority() const
     {
         ULONG MemoryPriority;
     };
+
+#define MEMORY_PRIORITY_LOWEST 0
+#define MEMORY_PRIORITY_VERY_LOW 1
+#define MEMORY_PRIORITY_LOW 2
+#define MEMORY_PRIORITY_MEDIUM 3
+#define MEMORY_PRIORITY_BELOW_NORMAL 4
+#define MEMORY_PRIORITY_NORMAL 5
 #endif
 
     MEMORY_PRIORITY_INFORMATION prioInfo {};
@@ -3725,11 +3863,6 @@ void Session::startUpTorrents()
     int resumedTorrentsCount = 0;
     const auto startupTorrent = [this, &resumeDataDir, &resumedTorrentsCount](const TorrentResumeData &params)
     {
-        // TODO: Remove loading of .torrent files when starting up existing torrents
-        // Starting from v4.2.0, the required `info` dict will be stored in fastresume too
-        // (besides .torrent file), that means we can remove loading of .torrent files in
-        // a later release, such as v4.3.0.
-
         const QString filePath = resumeDataDir.filePath(QString("%1.torrent").arg(params.hash));
         qDebug() << "Starting up torrent" << params.hash << "...";
         if (!addTorrent_impl(params.addTorrentData, params.magnetUri, TorrentInfo::loadFromFile(filePath), params.data))
@@ -4046,6 +4179,10 @@ void Session::createTorrentHandle(const lt::torrent_handle &nativeHandle)
     // Send new torrent signal
     if (!params.restored)
         emit torrentNew(torrent);
+
+    // Torrent could have error just after adding to libtorrent
+    if (torrent->hasError())
+        LogMsg(tr("Torrent errored. Torrent: \"%1\". Error: %2.").arg(torrent->name(), torrent->error()), Log::WARNING);
 }
 
 void Session::handleAddTorrentAlert(const lt::add_torrent_alert *p)
@@ -4477,138 +4614,4 @@ void Session::handleStateUpdateAlert(const lt::state_update_alert *p)
 
     if (!updatedTorrents.isEmpty())
         emit torrentsUpdated(updatedTorrents);
-}
-
-namespace
-{
-    bool readFile(const QString &path, QByteArray &buf)
-    {
-        QFile file(path);
-        if (!file.open(QIODevice::ReadOnly)) {
-            qDebug("Cannot read file %s: %s", qUtf8Printable(path), qUtf8Printable(file.errorString()));
-            return false;
-        }
-
-        buf = file.readAll();
-        return true;
-    }
-
-    bool loadTorrentResumeData(const QByteArray &data, CreateTorrentParams &torrentParams, int &queuePos, MagnetUri &magnetUri)
-    {
-        lt::error_code ec;
-        lt::bdecode_node root;
-        lt::bdecode(data.constData(), (data.constData() + data.size()), root, ec);
-        if (ec || (root.type() != lt::bdecode_node::dict_t)) return false;
-
-        torrentParams = CreateTorrentParams();
-
-        torrentParams.restored = true;
-        torrentParams.skipChecking = false;
-        torrentParams.name = fromLTString(root.dict_find_string_value("qBt-name"));
-        torrentParams.savePath = Profile::instance().fromPortablePath(
-            Utils::Fs::toUniformPath(fromLTString(root.dict_find_string_value("qBt-savePath"))));
-        torrentParams.disableTempPath = root.dict_find_int_value("qBt-tempPathDisabled");
-        torrentParams.sequential = root.dict_find_int_value("qBt-sequential");
-        torrentParams.hasSeedStatus = root.dict_find_int_value("qBt-seedStatus");
-        torrentParams.firstLastPiecePriority = root.dict_find_int_value("qBt-firstLastPiecePriority");
-        torrentParams.hasRootFolder = root.dict_find_int_value("qBt-hasRootFolder");
-        torrentParams.seedingTimeLimit = root.dict_find_int_value("qBt-seedingTimeLimit", TorrentHandle::USE_GLOBAL_SEEDING_TIME);
-
-        const bool isAutoManaged = root.dict_find_int_value("auto_managed");
-        const bool isPaused = root.dict_find_int_value("paused");
-        torrentParams.paused = root.dict_find_int_value("qBt-paused", (isPaused && !isAutoManaged));
-        torrentParams.forced = root.dict_find_int_value("qBt-forced", (!isPaused && !isAutoManaged));
-
-        const LTString ratioLimitString = root.dict_find_string_value("qBt-ratioLimit");
-        if (ratioLimitString.empty())
-            torrentParams.ratioLimit = root.dict_find_int_value("qBt-ratioLimit", TorrentHandle::USE_GLOBAL_RATIO * 1000) / 1000.0;
-        else
-            torrentParams.ratioLimit = fromLTString(ratioLimitString).toDouble();
-
-        // **************************************************************************************
-        // Workaround to convert legacy label to category
-        // TODO: Should be removed in future
-        torrentParams.category = fromLTString(root.dict_find_string_value("qBt-label"));
-        if (torrentParams.category.isEmpty())
-        // **************************************************************************************
-            torrentParams.category = fromLTString(root.dict_find_string_value("qBt-category"));
-
-        const lt::bdecode_node tagsNode = root.dict_find("qBt-tags");
-        if (tagsNode.type() == lt::bdecode_node::list_t) {
-            for (int i = 0; i < tagsNode.list_size(); ++i) {
-                const QString tag = fromLTString(tagsNode.list_string_value_at(i));
-                if (Session::isValidTag(tag))
-                    torrentParams.tags << tag;
-            }
-        }
-
-        const lt::bdecode_node addedTimeNode = root.dict_find("qBt-addedTime");
-        if (addedTimeNode.type() == lt::bdecode_node::int_t)
-            torrentParams.addedTime = QDateTime::fromSecsSinceEpoch(addedTimeNode.int_value());
-
-        queuePos = root.dict_find_int_value("qBt-queuePosition");
-        magnetUri = MagnetUri(fromLTString(root.dict_find_string_value("qBt-magnetUri")));
-
-        return true;
-    }
-
-    void torrentQueuePositionUp(const lt::torrent_handle &handle)
-    {
-        try {
-            handle.queue_position_up();
-        }
-        catch (const std::exception &exc) {
-            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
-        }
-    }
-
-    void torrentQueuePositionDown(const lt::torrent_handle &handle)
-    {
-        try {
-            handle.queue_position_down();
-        }
-        catch (const std::exception &exc) {
-            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
-        }
-    }
-
-    void torrentQueuePositionTop(const lt::torrent_handle &handle)
-    {
-        try {
-            handle.queue_position_top();
-        }
-        catch (const std::exception &exc) {
-            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
-        }
-    }
-
-    void torrentQueuePositionBottom(const lt::torrent_handle &handle)
-    {
-        try {
-            handle.queue_position_bottom();
-        }
-        catch (const std::exception &exc) {
-            qDebug() << Q_FUNC_INFO << " fails: " << exc.what();
-        }
-    }
-
-#ifdef Q_OS_WIN
-    QString convertIfaceNameToGuid(const QString &name)
-    {
-        // Under Windows XP or on Qt version <= 5.5 'name' will be a GUID already.
-        const QUuid uuid(name);
-        if (!uuid.isNull())
-            return uuid.toString().toUpper(); // Libtorrent expects the GUID in uppercase
-
-        NET_LUID luid {};
-        const LONG res = ::ConvertInterfaceNameToLuidW(name.toStdWString().c_str(), &luid);
-        if (res == 0) {
-            GUID guid;
-            if (::ConvertInterfaceLuidToGuid(&luid, &guid) == 0)
-                return QUuid(guid).toString().toUpper();
-        }
-
-        return {};
-    }
-#endif
 }
