@@ -29,6 +29,8 @@
 
 #include "preferences.h"
 
+#include <chrono>
+
 #ifdef Q_OS_MACOS
 #include <CoreServices/CoreServices.h>
 #endif
@@ -77,10 +79,8 @@ void Preferences::initInstance()
 
 void Preferences::freeInstance()
 {
-    if (m_instance) {
-        delete m_instance;
-        m_instance = nullptr;
-    }
+    delete m_instance;
+    m_instance = nullptr;
 }
 
 const QVariant Preferences::value(const QString &key, const QVariant &defaultValue) const
@@ -623,6 +623,26 @@ void Preferences::setWebUIPassword(const QByteArray &password)
     setValue("Preferences/WebUI/Password_PBKDF2", password);
 }
 
+int Preferences::getWebUIMaxAuthFailCount() const
+{
+    return value("Preferences/WebUI/MaxAuthenticationFailCount", 5).toInt();
+}
+
+void Preferences::setWebUIMaxAuthFailCount(const int count)
+{
+    setValue("Preferences/WebUI/MaxAuthenticationFailCount", count);
+}
+
+std::chrono::seconds Preferences::getWebUIBanDuration() const
+{
+    return std::chrono::seconds {value("Preferences/WebUI/BanDuration", 3600).toInt()};
+}
+
+void Preferences::setWebUIBanDuration(const std::chrono::seconds duration)
+{
+    setValue("Preferences/WebUI/BanDuration", static_cast<int>(duration.count()));
+}
+
 int Preferences::getWebUISessionTimeout() const
 {
     return value("Preferences/WebUI/SessionTimeout", 3600).toInt();
@@ -651,6 +671,16 @@ bool Preferences::isWebUiCSRFProtectionEnabled() const
 void Preferences::setWebUiCSRFProtectionEnabled(const bool enabled)
 {
     setValue("Preferences/WebUI/CSRFProtection", enabled);
+}
+
+bool Preferences::isWebUiSecureCookieEnabled() const
+{
+    return value("Preferences/WebUI/SecureCookie", true).toBool();
+}
+
+void Preferences::setWebUiSecureCookieEnabled(const bool enabled)
+{
+    setValue("Preferences/WebUI/SecureCookie", enabled);
 }
 
 bool Preferences::isWebUIHostHeaderValidationEnabled() const
@@ -781,7 +811,7 @@ bool Preferences::isUILocked() const
 
 void Preferences::setUILocked(const bool locked)
 {
-    return setValue("Locking/locked", locked);
+    setValue("Locking/locked", locked);
 }
 
 bool Preferences::isAutoRunEnabled() const
@@ -791,7 +821,7 @@ bool Preferences::isAutoRunEnabled() const
 
 void Preferences::setAutoRunEnabled(const bool enabled)
 {
-    return setValue("AutoRun/enabled", enabled);
+    setValue("AutoRun/enabled", enabled);
 }
 
 QString Preferences::getAutoRunProgram() const
@@ -803,6 +833,18 @@ void Preferences::setAutoRunProgram(const QString &program)
 {
     setValue("AutoRun/program", program);
 }
+
+#if defined(Q_OS_WIN) && (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
+bool Preferences::isAutoRunConsoleEnabled() const
+{
+    return value("AutoRun/ConsoleEnabled", false).toBool();
+}
+
+void Preferences::setAutoRunConsoleEnabled(const bool enabled)
+{
+    setValue("AutoRun/ConsoleEnabled", enabled);
+}
+#endif
 
 bool Preferences::shutdownWhenDownloadsComplete() const
 {

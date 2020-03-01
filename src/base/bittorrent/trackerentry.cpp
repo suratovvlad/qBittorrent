@@ -52,20 +52,6 @@ QString TrackerEntry::url() const
     return QString::fromStdString(nativeEntry().url);
 }
 
-bool TrackerEntry::isWorking() const
-{
-#if (LIBTORRENT_VERSION_NUM < 10200)
-    return nativeEntry().is_working();
-#else
-    const auto &endpoints = nativeEntry().endpoints;
-    return std::any_of(endpoints.begin(), endpoints.end()
-                       , [](const lt::announce_endpoint &endpoint)
-    {
-        return endpoint.is_working();
-    });
-#endif
-}
-
 int TrackerEntry::tier() const
 {
     return nativeEntry().tier;
@@ -73,37 +59,36 @@ int TrackerEntry::tier() const
 
 TrackerEntry::Status TrackerEntry::status() const
 {
-    // lt::announce_entry::is_working() returns
-    // true when the tracker hasn't been tried yet.
-    if (nativeEntry().verified && isWorking())
-        return Working;
-
 #if (LIBTORRENT_VERSION_NUM < 10200)
-    if ((nativeEntry().fails == 0) && nativeEntry().updating)
+    if (nativeEntry().fails > 0)
+        return NotWorking;
+
+    if (nativeEntry().updating)
         return Updating;
-    if (nativeEntry().fails == 0)
-        return NotContacted;
 #else
     const auto &endpoints = nativeEntry().endpoints;
-    const bool allFailed = std::all_of(endpoints.begin(), endpoints.end()
-                                       , [](const lt::announce_endpoint &endpoint)
+
+    const bool allFailed = !endpoints.empty() && std::all_of(endpoints.begin(), endpoints.end()
+        , [](const lt::announce_endpoint &endpoint)
     {
         return (endpoint.fails > 0);
     });
-    const bool updating = std::any_of(endpoints.begin(), endpoints.end()
-                                      , [](const lt::announce_endpoint &endpoint)
+    if (allFailed)
+        return NotWorking;
+
+    const bool isUpdating = std::any_of(endpoints.begin(), endpoints.end()
+        , [](const lt::announce_endpoint &endpoint)
     {
         return endpoint.updating;
     });
-
-    if (!allFailed && updating)
+    if (isUpdating)
         return Updating;
-
-    if (!allFailed)
-        return NotContacted;
 #endif
 
-    return NotWorking;
+    if (!nativeEntry().verified)
+        return NotContacted;
+
+    return Working;
 }
 
 void TrackerEntry::setTier(const int value)
@@ -160,5 +145,5 @@ bool BitTorrent::operator==(const TrackerEntry &left, const TrackerEntry &right)
 
 uint BitTorrent::qHash(const TrackerEntry &key, const uint seed)
 {
-    return (::qHash(key.url(), seed) ^ key.tier());
+    return (::qHash(key.url(), seed) ^ ::qHash(key.tier()));
 }

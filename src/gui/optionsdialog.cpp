@@ -175,7 +175,17 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     // Languages supported
     initializeLanguageCombo();
 
-    initializeThemeCombo();
+    m_ui->checkUseCustomTheme->setChecked(Preferences::instance()->useCustomUITheme());
+    m_ui->customThemeFilePath->setSelectedPath(Preferences::instance()->customUIThemePath());
+    m_ui->customThemeFilePath->setMode(FileSystemPathEdit::Mode::FileOpen);
+    m_ui->customThemeFilePath->setDialogCaption(tr("Select qBittorrent UI Theme file"));
+    m_ui->customThemeFilePath->setFileNameFilter(tr("qBittorrent UI Theme file (*.qbtheme)"));
+
+#if (defined(Q_OS_UNIX) && !defined(Q_OS_MACOS))
+    m_ui->checkUseSystemIcon->setChecked(Preferences::instance()->useSystemIconTheme());
+#else
+    m_ui->checkUseSystemIcon->setVisible(false);
+#endif
 
     // Load week days (scheduler)
     m_ui->comboBoxScheduleDays->addItems(translatedWeekdayNames());
@@ -218,7 +228,11 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     // Apply button is activated when a value is changed
     // Behavior tab
     connect(m_ui->comboI18n, qComboBoxCurrentIndexChanged, this, &ThisType::enableApplyButton);
-    connect(m_ui->comboTheme, qComboBoxCurrentIndexChanged, this, &ThisType::enableApplyButton);
+    connect(m_ui->checkUseCustomTheme, &QGroupBox::toggled, this, &ThisType::enableApplyButton);
+    connect(m_ui->customThemeFilePath, &FileSystemPathEdit::selectedPathChanged, this, &ThisType::enableApplyButton);
+#if (defined(Q_OS_UNIX) && !defined(Q_OS_MACOS))
+    connect(m_ui->checkUseSystemIcon, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
+#endif
     connect(m_ui->confirmDeletion, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkAltRowColors, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkHideZero, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
@@ -295,6 +309,7 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     connect(m_ui->mailNotifPassword, &QLineEdit::textChanged, this, &ThisType::enableApplyButton);
     connect(m_ui->autoRunBox, &QGroupBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->lineEditAutoRun, &QLineEdit::textChanged, this, &ThisType::enableApplyButton);
+    connect(m_ui->autoRunConsole, &QCheckBox::toggled, this, &ThisType::enableApplyButton);
 
     const QString autoRunStr = QString("%1\n    %2\n    %3\n    %4\n    %5\n    %6\n    %7\n    %8\n    %9\n    %10\n    %11\n%12")
         .arg(tr("Supported parameters (case sensitive):")
@@ -406,9 +421,13 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     connect(m_ui->checkBypassLocalAuth, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkBypassAuthSubnetWhitelist, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkBypassAuthSubnetWhitelist, &QAbstractButton::toggled, m_ui->IPSubnetWhitelistButton, &QPushButton::setEnabled);
+    connect(m_ui->spinBanCounter, qSpinBoxValueChanged, this, &ThisType::enableApplyButton);
+    connect(m_ui->spinBanDuration, qSpinBoxValueChanged, this, &ThisType::enableApplyButton);
     connect(m_ui->spinSessionTimeout, qSpinBoxValueChanged, this, &ThisType::enableApplyButton);
     connect(m_ui->checkClickjacking, &QCheckBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkCSRFProtection, &QCheckBox::toggled, this, &ThisType::enableApplyButton);
+    connect(m_ui->checkWebUiHttps, &QGroupBox::toggled, m_ui->checkSecureCookie, &QWidget::setEnabled);
+    connect(m_ui->checkSecureCookie, &QCheckBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->groupHostHeaderValidation, &QGroupBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkDynDNS, &QGroupBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->comboDNSService, qComboBoxCurrentIndexChanged, this, &ThisType::enableApplyButton);
@@ -496,38 +515,6 @@ void OptionsDialog::initializeLanguageCombo()
     }
 }
 
-void OptionsDialog::initializeThemeCombo()
-{
-    m_ui->comboTheme->addItem(tr("Default"));
-    const QString customUIThemePath = Preferences::instance()->customUIThemePath();
-    if (!customUIThemePath.isEmpty())
-        m_ui->comboTheme->addItem(Utils::Fs::toNativePath(customUIThemePath));
-    m_ui->comboTheme->insertSeparator(m_ui->comboTheme->count());
-    m_ui->comboTheme->addItem(tr("Select..."));
-    m_ui->comboTheme->setCurrentIndex(Preferences::instance()->useCustomUITheme() ? 1 : 0);
-
-    connect(m_ui->comboTheme, qOverload<int>(&QComboBox::currentIndexChanged), this, [this](const int index)
-    {
-        if (index != (m_ui->comboTheme->count() - 1))
-            return;
-
-        m_uiThemeFilePath = QFileDialog::getOpenFileName(this, tr("Select qBittorrent theme file"), {}, tr("qBittorrent Theme File (*.qbtheme)"));
-        m_ui->comboTheme->blockSignals(true);
-        if (!m_uiThemeFilePath.isEmpty()) {
-            if (m_ui->comboTheme->count() == 3)
-                m_ui->comboTheme->insertItem(1, Utils::Fs::toNativePath(m_uiThemeFilePath));
-            else
-                m_ui->comboTheme->setItemText(1, Utils::Fs::toNativePath(m_uiThemeFilePath));
-            m_ui->comboTheme->setCurrentIndex(1);
-        }
-        else {
-            // don't leave "Select..." as current text
-            m_ui->comboTheme->setCurrentIndex(Preferences::instance()->useCustomUITheme() ? 1 : 0);
-        }
-        m_ui->comboTheme->blockSignals(false);
-    });
-}
-
 // Main destructor
 OptionsDialog::~OptionsDialog()
 {
@@ -599,13 +586,12 @@ void OptionsDialog::saveOptions()
     // Behavior preferences
     pref->setLocale(locale);
 
-    if (!m_uiThemeFilePath.isEmpty()
-        && (m_ui->comboTheme->currentIndex() == 1)) {
-        // only change if current selection is still new m_uiThemeFilePath
-        pref->setCustomUIThemePath(m_uiThemeFilePath);
-        m_uiThemeFilePath.clear();
-    }
-    pref->setUseCustomUITheme(m_ui->comboTheme->currentIndex() == 1);
+    pref->setUseCustomUITheme(m_ui->checkUseCustomTheme->isChecked());
+    pref->setCustomUIThemePath(m_ui->customThemeFilePath->selectedPath());
+
+#if (defined(Q_OS_UNIX) && !defined(Q_OS_MACOS))
+    pref->useSystemIconTheme(m_ui->checkUseSystemIcon->isChecked());
+#endif
 
     pref->setConfirmTorrentDeletion(m_ui->confirmDeletion->isChecked());
     pref->setAlternatingRowColors(m_ui->checkAltRowColors->isChecked());
@@ -696,6 +682,9 @@ void OptionsDialog::saveOptions()
     pref->setMailNotificationSMTPPassword(m_ui->mailNotifPassword->text());
     pref->setAutoRunEnabled(m_ui->autoRunBox->isChecked());
     pref->setAutoRunProgram(m_ui->lineEditAutoRun->text().trimmed());
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)) && defined(Q_OS_WIN)
+    pref->setAutoRunConsoleEnabled(m_ui->autoRunConsole->isChecked());
+#endif
     pref->setActionOnDblClOnTorrentDl(getActionOnDblClOnTorrentDl());
     pref->setActionOnDblClOnTorrentFn(getActionOnDblClOnTorrentFn());
     TorrentFileGuard::setAutoDeleteMode(!m_ui->deleteTorrentBox->isChecked() ? TorrentFileGuard::Never
@@ -783,6 +772,8 @@ void OptionsDialog::saveOptions()
         pref->setWebUiHttpsEnabled(m_ui->checkWebUiHttps->isChecked());
         pref->setWebUIHttpsCertificatePath(m_ui->textWebUIHttpsCert->selectedPath());
         pref->setWebUIHttpsKeyPath(m_ui->textWebUIHttpsKey->selectedPath());
+        pref->setWebUIMaxAuthFailCount(m_ui->spinBanCounter->value());
+        pref->setWebUIBanDuration(std::chrono::seconds {m_ui->spinBanDuration->value()});
         pref->setWebUISessionTimeout(m_ui->spinSessionTimeout->value());
         // Authentication
         pref->setWebUiUsername(webUiUsername());
@@ -793,6 +784,7 @@ void OptionsDialog::saveOptions()
         // Security
         pref->setWebUiClickjackingProtectionEnabled(m_ui->checkClickjacking->isChecked());
         pref->setWebUiCSRFProtectionEnabled(m_ui->checkCSRFProtection->isChecked());
+        pref->setWebUiSecureCookieEnabled(m_ui->checkSecureCookie->isChecked());
         pref->setWebUIHostHeaderValidationEnabled(m_ui->groupHostHeaderValidation->isChecked());
         // DynDNS
         pref->setDynDNSEnabled(m_ui->checkDynDNS->isChecked());
@@ -970,6 +962,11 @@ void OptionsDialog::loadOptions()
 
     m_ui->autoRunBox->setChecked(pref->isAutoRunEnabled());
     m_ui->lineEditAutoRun->setText(pref->getAutoRunProgram());
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)) && defined(Q_OS_WIN)
+    m_ui->autoRunConsole->setChecked(pref->isAutoRunConsoleEnabled());
+#else
+    m_ui->autoRunConsole->hide();
+#endif
     intValue = pref->getActionOnDblClOnTorrentDl();
     if (intValue >= m_ui->actionTorrentDlOnDblClBox->count())
         intValue = 0;
@@ -1160,11 +1157,15 @@ void OptionsDialog::loadOptions()
     m_ui->checkBypassLocalAuth->setChecked(!pref->isWebUiLocalAuthEnabled());
     m_ui->checkBypassAuthSubnetWhitelist->setChecked(pref->isWebUiAuthSubnetWhitelistEnabled());
     m_ui->IPSubnetWhitelistButton->setEnabled(m_ui->checkBypassAuthSubnetWhitelist->isChecked());
+    m_ui->spinBanCounter->setValue(pref->getWebUIMaxAuthFailCount());
+    m_ui->spinBanDuration->setValue(pref->getWebUIBanDuration().count());
     m_ui->spinSessionTimeout->setValue(pref->getWebUISessionTimeout());
 
     // Security
     m_ui->checkClickjacking->setChecked(pref->isWebUiClickjackingProtectionEnabled());
     m_ui->checkCSRFProtection->setChecked(pref->isWebUiCSRFProtectionEnabled());
+    m_ui->checkSecureCookie->setEnabled(pref->isWebUiHttpsEnabled());
+    m_ui->checkSecureCookie->setChecked(pref->isWebUiSecureCookieEnabled());
     m_ui->groupHostHeaderValidation->setChecked(pref->isWebUIHostHeaderValidationEnabled());
 
     m_ui->checkDynDNS->setChecked(pref->isDynDNSEnabled());

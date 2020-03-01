@@ -43,7 +43,7 @@
 #include "base/utils/net.h"
 #include "base/utils/version.h"
 
-constexpr Utils::Version<int, 3, 2> API_VERSION {2, 3, 0};
+constexpr Utils::Version<int, 3, 2> API_VERSION {2, 4, 1};
 
 class APIController;
 class WebApplication;
@@ -153,6 +153,7 @@ private:
     QStringList m_domainList;
     bool m_isClickjackingProtectionEnabled;
     bool m_isCSRFProtectionEnabled;
+    bool m_isSecureCookieEnabled;
     bool m_isHostHeaderValidationEnabled;
     bool m_isHttpsEnabled;
     QString m_contentSecurityPolicy;

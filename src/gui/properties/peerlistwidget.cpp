@@ -33,6 +33,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QHeaderView>
+#include <QHostAddress>
 #include <QMenu>
 #include <QMessageBox>
 #include <QSet>
@@ -57,6 +58,22 @@
 #include "propertieswidget.h"
 #include "uithememanager.h"
 
+struct PeerEndpoint
+{
+    BitTorrent::PeerAddress address;
+    QString connectionType; // matches return type of `PeerInfo::connectionType()`
+};
+
+bool operator==(const PeerEndpoint &left, const PeerEndpoint &right)
+{
+    return (left.address == right.address) && (left.connectionType == right.connectionType);
+}
+
+uint qHash(const PeerEndpoint &peerEndpoint, const uint seed)
+{
+    return (qHash(peerEndpoint.address, seed) ^ ::qHash(peerEndpoint.connectionType));
+}
+
 PeerListWidget::PeerListWidget(PropertiesWidget *parent)
     : QTreeView(parent)
     , m_properties(parent)
@@ -72,7 +89,7 @@ PeerListWidget::PeerListWidget(PropertiesWidget *parent)
     header()->setStretchLastSection(false);
     // List Model
     m_listModel = new QStandardItemModel(0, PeerListDelegate::COL_COUNT, this);
-    m_listModel->setHeaderData(PeerListDelegate::COUNTRY, Qt::Horizontal, tr("Country")); // Country flag column
+    m_listModel->setHeaderData(PeerListDelegate::COUNTRY, Qt::Horizontal, tr("Country/Region")); // Country flag column
     m_listModel->setHeaderData(PeerListDelegate::IP, Qt::Horizontal, tr("IP"));
     m_listModel->setHeaderData(PeerListDelegate::PORT, Qt::Horizontal, tr("Port"));
     m_listModel->setHeaderData(PeerListDelegate::FLAGS, Qt::Horizontal, tr("Flags"));
@@ -311,6 +328,7 @@ void PeerListWidget::copySelectedPeers()
 void PeerListWidget::clear()
 {
     m_peerItems.clear();
+    m_itemsByIP.clear();
     const int nbrows = m_listModel->rowCount();
     if (nbrows > 0)
         m_listModel->removeRows(0, nbrows);
@@ -331,42 +349,52 @@ void PeerListWidget::loadPeers(const BitTorrent::TorrentHandle *torrent)
     if (!torrent) return;
 
     const QVector<BitTorrent::PeerInfo> peers = torrent->peers();
-    QSet<QString> existingPeers;
+    QSet<PeerEndpoint> existingPeers;
     for (auto i = m_peerItems.cbegin(); i != m_peerItems.cend(); ++i)
         existingPeers << i.key();
 
     for (const BitTorrent::PeerInfo &peer : peers) {
-        const BitTorrent::PeerAddress addr = peer.address();
-        if (addr.ip.isNull()) continue;
+        if (peer.address().ip.isNull()) continue;
 
-        const QString peerIp = addr.ip.toString();
         bool isNewPeer = false;
-        updatePeer(peerIp, torrent, peer, isNewPeer);
-        if (!isNewPeer)
-            existingPeers.remove(peerIp);
+        updatePeer(torrent, peer, isNewPeer);
+        if (!isNewPeer) {
+            const PeerEndpoint peerEndpoint {peer.address(), peer.connectionType()};
+            existingPeers.remove(peerEndpoint);
+        }
     }
 
     // Remove peers that are gone
-    for (const QString &ip : asConst(existingPeers)) {
-        const QStandardItem *item = m_peerItems.take(ip);
+    for (const PeerEndpoint &peerEndpoint : asConst(existingPeers)) {
+        QStandardItem *item = m_peerItems.take(peerEndpoint);
+
+        QSet<QStandardItem *> &items = m_itemsByIP[peerEndpoint.address.ip];
+        items.remove(item);
+        if (items.isEmpty())
+            m_itemsByIP.remove(peerEndpoint.address.ip);
+
         m_listModel->removeRow(item->row());
     }
 }
 
-void PeerListWidget::updatePeer(const QString &ip, const BitTorrent::TorrentHandle *torrent, const BitTorrent::PeerInfo &peer, bool &isNewPeer)
+void PeerListWidget::updatePeer(const BitTorrent::TorrentHandle *torrent, const BitTorrent::PeerInfo &peer, bool &isNewPeer)
 {
-    auto itemIter = m_peerItems.find(ip);
+    const PeerEndpoint peerEndpoint {peer.address(), peer.connectionType()};
+    const QString peerIp = peerEndpoint.address.ip.toString();
+
+    auto itemIter = m_peerItems.find(peerEndpoint);
     isNewPeer = (itemIter == m_peerItems.end());
     if (isNewPeer) {
         // new item
         const int row = m_listModel->rowCount();
         m_listModel->insertRow(row);
-        m_listModel->setData(m_listModel->index(row, PeerListDelegate::IP), ip);
-        m_listModel->setData(m_listModel->index(row, PeerListDelegate::IP), ip, Qt::ToolTipRole);
+        m_listModel->setData(m_listModel->index(row, PeerListDelegate::IP), peerIp);
+        m_listModel->setData(m_listModel->index(row, PeerListDelegate::IP), peerIp, Qt::ToolTipRole);
         m_listModel->setData(m_listModel->index(row, PeerListDelegate::PORT), peer.address().port);
-        m_listModel->setData(m_listModel->index(row, PeerListDelegate::IP_HIDDEN), ip);
+        m_listModel->setData(m_listModel->index(row, PeerListDelegate::IP_HIDDEN), peerIp);
 
-        itemIter = m_peerItems.insert(ip, m_listModel->item(row, PeerListDelegate::IP));
+        itemIter = m_peerItems.insert(peerEndpoint, m_listModel->item(row, PeerListDelegate::IP));
+        m_itemsByIP[peerEndpoint.address.ip].insert(itemIter.value());
     }
 
     const int row = (*itemIter)->row();
@@ -386,7 +414,7 @@ void PeerListWidget::updatePeer(const QString &ip, const BitTorrent::TorrentHand
     m_listModel->setData(m_listModel->index(row, PeerListDelegate::DOWNLOADING_PIECE), downloadingFiles.join('\n'), Qt::ToolTipRole);
 
     if (m_resolver)
-        m_resolver->resolve(ip);
+        m_resolver->resolve(peerEndpoint.address.ip);
 
     if (m_resolveCountries) {
         const QIcon icon = UIThemeManager::instance()->getFlagIcon(peer.country());
@@ -398,10 +426,13 @@ void PeerListWidget::updatePeer(const QString &ip, const BitTorrent::TorrentHand
     }
 }
 
-void PeerListWidget::handleResolved(const QString &ip, const QString &hostname)
+void PeerListWidget::handleResolved(const QHostAddress &ip, const QString &hostname) const
 {
-    QStandardItem *item = m_peerItems.value(ip, nullptr);
-    if (item)
+    if (hostname.isEmpty())
+        return;
+
+    const QSet<QStandardItem *> items = m_itemsByIP.value(ip);
+    for (QStandardItem *item : items)
         item->setData(hostname, Qt::DisplayRole);
 }
 

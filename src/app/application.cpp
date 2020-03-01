@@ -146,13 +146,13 @@ Application::Application(const QString &id, int &argc, char **argv)
     QPixmapCache::setCacheLimit(PIXMAP_CACHE_SIZE);
 #endif
 
-    validateCommandLineParameters();
+    const bool portableModeEnabled = m_commandLineArgs.profileDir.isEmpty() && QDir(QCoreApplication::applicationDirPath()).exists(DEFAULT_PORTABLE_MODE_PROFILE_DIR);
 
-    const QString profileDir = m_commandLineArgs.portableMode
+    const QString profileDir = portableModeEnabled
         ? QDir(QCoreApplication::applicationDirPath()).absoluteFilePath(DEFAULT_PORTABLE_MODE_PROFILE_DIR)
         : m_commandLineArgs.profileDir;
-    Profile::initialize(profileDir, m_commandLineArgs.configurationName,
-                        m_commandLineArgs.relativeFastresumePaths || m_commandLineArgs.portableMode);
+    Profile::initInstance(profileDir, m_commandLineArgs.configurationName,
+                        (m_commandLineArgs.relativeFastresumePaths || portableModeEnabled));
 
     Logger::initInstance();
     SettingsStorage::initInstance();
@@ -173,6 +173,14 @@ Application::Application(const QString &id, int &argc, char **argv)
         m_fileLogger = new FileLogger(fileLoggerPath(), isFileLoggerBackup(), fileLoggerMaxSize(), isFileLoggerDeleteOld(), fileLoggerAge(), static_cast<FileLogger::FileLogAgeType>(fileLoggerAgeType()));
 
     Logger::instance()->addMessage(tr("qBittorrent %1 started", "qBittorrent v3.2.0alpha started").arg(QBT_VERSION));
+    if (portableModeEnabled) {
+        Logger::instance()->addMessage(tr("Running in portable mode. Auto detected profile folder at: %1").arg(profileDir));
+        if (m_commandLineArgs.relativeFastresumePaths)
+            Logger::instance()->addMessage(tr("Redundant command line flag detected: \"%1\". Portable mode implies relative fastresume.").arg("--relative-fastresume"), Log::WARNING); // to avoid translating the `--relative-fastresume` string
+    }
+    else {
+        Logger::instance()->addMessage(tr("Using config directory: %1").arg(Profile::instance()->location(SpecialFolder::Config)));
+    }
 }
 
 Application::~Application()
@@ -326,23 +334,47 @@ void Application::runExternalProgram(const BitTorrent::TorrentHandle *torrent) c
     logger->addMessage(tr("Torrent: %1, running external program, command: %2").arg(torrent->name(), program));
 
 #if defined(Q_OS_WIN)
-    std::unique_ptr<wchar_t[]> programWchar(new wchar_t[program.length() + 1] {});
+    auto programWchar = std::make_unique<wchar_t[]>(program.length() + 1);
     program.toWCharArray(programWchar.get());
 
     // Need to split arguments manually because QProcess::startDetached(QString)
     // will strip off empty parameters.
     // E.g. `python.exe "1" "" "3"` will become `python.exe "1" "3"`
     int argCount = 0;
-    LPWSTR *args = ::CommandLineToArgvW(programWchar.get(), &argCount);
+    std::unique_ptr<LPWSTR[], decltype(&::LocalFree)> args {::CommandLineToArgvW(programWchar.get(), &argCount), ::LocalFree};
 
     QStringList argList;
     for (int i = 1; i < argCount; ++i)
         argList += QString::fromWCharArray(args[i]);
 
-    QProcess::startDetached(QString::fromWCharArray(args[0]), argList);
-
-    ::LocalFree(args);
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 10, 0))
+    QProcess proc;
+    proc.setProgram(QString::fromWCharArray(args[0]));
+    proc.setArguments(argList);
+    proc.setCreateProcessArgumentsModifier([](QProcess::CreateProcessArguments *args)
+    {
+        if (Preferences::instance()->isAutoRunConsoleEnabled()) {
+            args->flags |= CREATE_NEW_CONSOLE;
+            args->flags &= ~(CREATE_NO_WINDOW | DETACHED_PROCESS);
+        }
+        else {
+            args->flags |= CREATE_NO_WINDOW;
+            args->flags &= ~(CREATE_NEW_CONSOLE | DETACHED_PROCESS);
+        }
+        args->inheritHandles = false;
+        args->startupInfo->dwFlags &= ~STARTF_USESTDHANDLES;
+        ::CloseHandle(args->startupInfo->hStdInput);
+        ::CloseHandle(args->startupInfo->hStdOutput);
+        ::CloseHandle(args->startupInfo->hStdError);
+        args->startupInfo->hStdInput = nullptr;
+        args->startupInfo->hStdOutput = nullptr;
+        args->startupInfo->hStdError = nullptr;
+    });
+    proc.startDetached();
 #else
+    QProcess::startDetached(QString::fromWCharArray(args[0]), argList);
+#endif // QT_VERSION >= QT_VERSION_CHECK(5, 10, 0)
+#else // Q_OS_WIN
     // Cannot give users shell environment by default, as doing so could
     // enable command injection via torrent name and other arguments
     // (especially when some automated download mechanism has been setup).
@@ -520,7 +552,7 @@ int Application::exec(const QStringList &params)
 #ifndef DISABLE_COUNTRIES_RESOLUTION
         Net::GeoIPManager::initInstance();
 #endif
-        ScanFoldersModel::initInstance(this);
+        ScanFoldersModel::initInstance();
 
 #ifndef DISABLE_WEBUI
         m_webui = new WebUI;
@@ -743,17 +775,10 @@ void Application::cleanup()
     }
 #endif // DISABLE_GUI
 
+    Profile::freeInstance();
+
     if (m_shutdownAct != ShutdownDialogAction::Exit) {
         qDebug() << "Sending computer shutdown/suspend/hibernate signal...";
         Utils::Misc::shutdownComputer(m_shutdownAct);
     }
-}
-
-void Application::validateCommandLineParameters()
-{
-    if (m_commandLineArgs.portableMode && !m_commandLineArgs.profileDir.isEmpty())
-        throw CommandLineParameterError(tr("Portable mode and explicit profile directory options are mutually exclusive"));
-
-    if (m_commandLineArgs.portableMode && m_commandLineArgs.relativeFastresumePaths)
-        Logger::instance()->addMessage(tr("Portable mode implies relative fastresume"), Log::WARNING);
 }

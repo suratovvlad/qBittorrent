@@ -303,8 +303,6 @@ namespace BitTorrent
         void setNetworkInterfaceName(const QString &name);
         QString networkInterfaceAddress() const;
         void setNetworkInterfaceAddress(const QString &address);
-        bool isIPv6Enabled() const;
-        void setIPv6Enabled(bool enabled);
         int encryption() const;
         void setEncryption(int state);
         bool isProxyPeerConnectionsEnabled() const;
@@ -339,6 +337,8 @@ namespace BitTorrent
         void setUseOSCache(bool use);
         bool isCoalesceReadWriteEnabled() const;
         void setCoalesceReadWriteEnabled(bool enabled);
+        bool usePieceExtentAffinity() const;
+        void setPieceExtentAffinity(bool enabled);
         bool isSuggestModeEnabled() const;
         void setSuggestMode(bool mode);
         int sendBufferWatermark() const;
@@ -371,6 +371,8 @@ namespace BitTorrent
         void setIncludeOverheadInLimits(bool include);
         QString announceIP() const;
         void setAnnounceIP(const QString &ip);
+        int stopTrackerTimeout() const;
+        void setStopTrackerTimeout(int value);
         bool isSuperSeedingEnabled() const;
         void setSuperSeedingEnabled(bool enabled);
         int maxConnections() const;
@@ -532,6 +534,7 @@ namespace BitTorrent
         void configureComponents();
         void initializeNativeSession();
         void loadLTSettings(lt::settings_pack &settingsPack);
+        void configureNetworkInterfaces(lt::settings_pack &settingsPack);
         void configurePeerClasses();
         void adjustLimits(lt::settings_pack &settingsPack);
         void applyBandwidthLimits(lt::settings_pack &settingsPack) const;
@@ -563,7 +566,6 @@ namespace BitTorrent
         void handleAddTorrentAlert(const lt::add_torrent_alert *p);
         void handleStateUpdateAlert(const lt::state_update_alert *p);
         void handleMetadataReceivedAlert(const lt::metadata_received_alert *p);
-        void handleTorrentPausedAlert(const lt::torrent_paused_alert *p);
         void handleFileErrorAlert(const lt::file_error_alert *p);
         void handleTorrentRemovedAlert(const lt::torrent_removed_alert *p);
         void handleTorrentDeletedAlert(const lt::torrent_deleted_alert *p);
@@ -611,6 +613,7 @@ namespace BitTorrent
         CachedSettingValue<int> m_diskCacheTTL;
         CachedSettingValue<bool> m_useOSCache;
         CachedSettingValue<bool> m_coalesceReadWriteEnabled;
+        CachedSettingValue<bool> m_usePieceExtentAffinity;
         CachedSettingValue<bool> m_isSuggestMode;
         CachedSettingValue<int> m_sendBufferWatermark;
         CachedSettingValue<int> m_sendBufferLowWatermark;
@@ -630,6 +633,7 @@ namespace BitTorrent
         CachedSettingValue<bool> m_ignoreLimitsOnLAN;
         CachedSettingValue<bool> m_includeOverheadInLimits;
         CachedSettingValue<QString> m_announceIP;
+        CachedSettingValue<int> m_stopTrackerTimeout;
         CachedSettingValue<bool> m_isSuperSeedingEnabled;
         CachedSettingValue<int> m_maxConnections;
         CachedSettingValue<int> m_maxUploads;
@@ -662,7 +666,6 @@ namespace BitTorrent
         CachedSettingValue<QString> m_networkInterface;
         CachedSettingValue<QString> m_networkInterfaceName;
         CachedSettingValue<QString> m_networkInterfaceAddress;
-        CachedSettingValue<bool> m_isIPv6Enabled;
         CachedSettingValue<int> m_encryption;
         CachedSettingValue<bool> m_isProxyPeerConnectionsEnabled;
         CachedSettingValue<ChokingAlgorithm> m_chokingAlgorithm;
