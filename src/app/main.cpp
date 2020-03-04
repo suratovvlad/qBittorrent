@@ -54,6 +54,7 @@
 #include <QPushButton>
 #include <QSplashScreen>
 #include <QTimer>
+#include <QFile>
 
 #ifdef QBT_STATIC_QT
 #include <QtPlugin>
