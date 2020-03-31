@@ -96,6 +96,8 @@ namespace BitTorrent
     class TrackerEntry;
     struct CreateTorrentParams;
 
+    enum class MoveStorageMode;
+
     // Using `Q_ENUM_NS()` without a wrapper namespace in our case is not advised
     // since `Q_NAMESPACE` cannot be used when the same namespace resides at different files.
     // https://www.kdab.com/new-qt-5-8-meta-object-support-namespaces/#comment-143779
@@ -365,6 +367,8 @@ namespace BitTorrent
         void setOutgoingPortsMin(int min);
         int outgoingPortsMax() const;
         void setOutgoingPortsMax(int max);
+        int UPnPLeaseDuration() const;
+        void setUPnPLeaseDuration(int duration);
         bool ignoreLimitsOnLAN() const;
         void setIgnoreLimitsOnLAN(bool ignore);
         bool includeOverheadInLimits() const;
@@ -461,6 +465,8 @@ namespace BitTorrent
         void handleTorrentTrackerWarning(TorrentHandle *const torrent, const QString &trackerUrl);
         void handleTorrentTrackerError(TorrentHandle *const torrent, const QString &trackerUrl);
 
+        bool addMoveTorrentStorageJob(TorrentHandle *torrent, const QString &newPath, MoveStorageMode mode);
+
     signals:
         void addTorrentFailed(const QString &error);
         void allTorrentsFinished();
@@ -514,6 +520,13 @@ namespace BitTorrent
         void networkConfigurationChange(const QNetworkConfiguration &);
 
     private:
+        struct MoveStorageJob
+        {
+            TorrentHandle *torrent;
+            QString path;
+            MoveStorageMode mode;
+        };
+
         struct RemovingTorrentData
         {
             QString name;
@@ -567,6 +580,7 @@ namespace BitTorrent
         void handleStateUpdateAlert(const lt::state_update_alert *p);
         void handleMetadataReceivedAlert(const lt::metadata_received_alert *p);
         void handleFileErrorAlert(const lt::file_error_alert *p);
+        void handleReadPieceAlert(const lt::read_piece_alert *p) const;
         void handleTorrentRemovedAlert(const lt::torrent_removed_alert *p);
         void handleTorrentDeletedAlert(const lt::torrent_deleted_alert *p);
         void handleTorrentDeleteFailedAlert(const lt::torrent_delete_failed_alert *p);
@@ -582,6 +596,11 @@ namespace BitTorrent
 #if (LIBTORRENT_VERSION_NUM >= 10200)
         void handleAlertsDroppedAlert(const lt::alerts_dropped_alert *p) const;
 #endif
+        void handleStorageMovedAlert(const lt::storage_moved_alert *p);
+        void handleStorageMovedFailedAlert(const lt::storage_moved_failed_alert *p);
+#if (LIBTORRENT_VERSION_NUM >= 10204)
+        void handleSocks5Alert(const lt::socks5_alert *p) const;
+#endif
 
         void createTorrentHandle(const lt::torrent_handle &nativeHandle);
 
@@ -590,6 +609,9 @@ namespace BitTorrent
         void removeTorrentsQueue();
 
         std::vector<lt::alert *> getPendingAlerts(lt::time_duration time = lt::time_duration::zero()) const;
+
+        void moveTorrentStorage(const MoveStorageJob &job) const;
+        void handleMoveTorrentStorageJobFinished(const QString &errorMessage = {});
 
         // BitTorrent
         lt::session *m_nativeSession = nullptr;
@@ -630,6 +652,7 @@ namespace BitTorrent
         CachedSettingValue<int> m_slowTorrentsInactivityTimer;
         CachedSettingValue<int> m_outgoingPortsMin;
         CachedSettingValue<int> m_outgoingPortsMax;
+        CachedSettingValue<int> m_UPnPLeaseDuration;
         CachedSettingValue<bool> m_ignoreLimitsOnLAN;
         CachedSettingValue<bool> m_includeOverheadInLimits;
         CachedSettingValue<QString> m_announceIP;
@@ -730,6 +753,8 @@ namespace BitTorrent
         CacheStatus m_cacheStatus;
 
         QNetworkConfigurationManager *m_networkManager = nullptr;
+
+        QList<MoveStorageJob> m_moveStorageQueue;
 
         static Session *m_instance;
     };

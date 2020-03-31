@@ -81,7 +81,7 @@ namespace
 QPointer<SearchPluginManager> SearchPluginManager::m_instance = nullptr;
 
 SearchPluginManager::SearchPluginManager()
-    : m_updateUrl(QString("http://searchplugins.qbittorrent.org/%1/engines/").arg(Utils::ForeignApps::pythonInfo().version.majorNumber() >= 3 ? "nova3" : "nova"))
+    : m_updateUrl(QLatin1String("http://searchplugins.qbittorrent.org/nova3/engines/"))
 {
     Q_ASSERT(!m_instance); // only one instance is allowed
     m_instance = this;
@@ -185,7 +185,7 @@ void SearchPluginManager::enablePlugin(const QString &name, const bool enabled)
 // Updates shipped plugin
 void SearchPluginManager::updatePlugin(const QString &name)
 {
-    installPlugin(QString("%1%2.py").arg(m_updateUrl, name));
+    installPlugin(QString::fromLatin1("%1%2.py").arg(m_updateUrl, name));
 }
 
 // Install or update plugin from file or url
@@ -283,12 +283,12 @@ bool SearchPluginManager::uninstallPlugin(const QString &name)
 void SearchPluginManager::updateIconPath(PluginInfo *const plugin)
 {
     if (!plugin) return;
-    QString iconPath = QString("%1/%2.png").arg(pluginsLocation(), plugin->name);
+    QString iconPath = QString::fromLatin1("%1/%2.png").arg(pluginsLocation(), plugin->name);
     if (QFile::exists(iconPath)) {
         plugin->iconPath = iconPath;
     }
     else {
-        iconPath = QString("%1/%2.ico").arg(pluginsLocation(), plugin->name);
+        iconPath = QString::fromLatin1("%1/%2.ico").arg(pluginsLocation(), plugin->name);
         if (QFile::exists(iconPath))
             plugin->iconPath = iconPath;
     }
@@ -338,16 +338,14 @@ QString SearchPluginManager::pluginFullName(const QString &pluginName)
 
 QString SearchPluginManager::pluginsLocation()
 {
-    return QString("%1/engines").arg(engineLocation());
+    return QString::fromLatin1("%1/engines").arg(engineLocation());
 }
 
 QString SearchPluginManager::engineLocation()
 {
     static QString location;
     if (location.isEmpty()) {
-        const QString folder = (Utils::ForeignApps::pythonInfo().version.majorNumber() >= 3)
-            ? "nova3" : "nova";
-        location = Utils::Fs::expandPathAbs(specialFolderLocation(SpecialFolder::Data) + folder);
+        location = Utils::Fs::expandPathAbs(specialFolderLocation(SpecialFolder::Data) + "nova3");
 
         const QDir locationDir(location);
         locationDir.mkpath(locationDir.absolutePath());
@@ -391,8 +389,6 @@ void SearchPluginManager::updateNova()
 {
     // create nova directory if necessary
     const QDir searchDir(engineLocation());
-    const QString novaFolder = Utils::ForeignApps::pythonInfo().version.majorNumber() >= 3
-        ? "searchengine/nova3" : "searchengine/nova";
 
     QFile packageFile(searchDir.absoluteFilePath("__init__.py"));
     packageFile.open(QIODevice::WriteOnly);
@@ -405,9 +401,9 @@ void SearchPluginManager::updateNova()
     packageFile2.close();
 
     // Copy search plugin files (if necessary)
-    const auto updateFile = [&novaFolder](const QString &filename, const bool compareVersion)
+    const auto updateFile = [](const QString &filename, const bool compareVersion)
     {
-        const QString filePathBundled = ":/" + novaFolder + '/' + filename;
+        const QString filePathBundled = ":/searchengine/nova3/" + filename;
         const QString filePathDisk = QDir(engineLocation()).absoluteFilePath(filename);
 
         if (compareVersion && (getPluginVersion(filePathBundled) <= getPluginVersion(filePathDisk)))
@@ -421,12 +417,8 @@ void SearchPluginManager::updateNova()
     updateFile("nova2.py", true);
     updateFile("nova2dl.py", true);
     updateFile("novaprinter.py", true);
+    updateFile("sgmllib3.py", false);
     updateFile("socks.py", false);
-
-    if (Utils::ForeignApps::pythonInfo().version.majorNumber() >= 3)
-        updateFile("sgmllib3.py", false);
-    else
-        updateFile("fix_encoding.py", false);
 }
 
 void SearchPluginManager::update()
@@ -457,7 +449,7 @@ void SearchPluginManager::update()
         if (!engineElem.isNull()) {
             const QString pluginName = engineElem.tagName();
 
-            std::unique_ptr<PluginInfo> plugin {new PluginInfo {}};
+            auto plugin = std::make_unique<PluginInfo>();
             plugin->name = pluginName;
             plugin->version = getPluginVersion(pluginPath(pluginName));
             plugin->fullName = engineElem.elementsByTagName("name").at(0).toElement().text();
@@ -534,7 +526,7 @@ bool SearchPluginManager::isUpdateNeeded(const QString &pluginName, const Plugin
 
 QString SearchPluginManager::pluginPath(const QString &name)
 {
-    return QString("%1/%2.py").arg(pluginsLocation(), name);
+    return QString::fromLatin1("%1/%2.py").arg(pluginsLocation(), name);
 }
 
 PluginVersion SearchPluginManager::getPluginVersion(const QString &filePath)

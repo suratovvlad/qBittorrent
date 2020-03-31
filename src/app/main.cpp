@@ -78,7 +78,6 @@ Q_IMPORT_PLUGIN(QICOPlugin)
 
 #include "base/preferences.h"
 #include "base/profile.h"
-#include "base/utils/misc.h"
 #include "application.h"
 #include "cmdoptions.h"
 #include "upgrade.h"
@@ -133,13 +132,20 @@ int main(int argc, char *argv[])
     // We must save it here because QApplication constructor may change it
     bool isOneArg = (argc == 2);
 
+#if !defined(DISABLE_GUI) && (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    // Attribute Qt::AA_EnableHighDpiScaling must be set before QCoreApplication is created
+    if (qgetenv("QT_ENABLE_HIGHDPI_SCALING").isEmpty() && qgetenv("QT_AUTO_SCREEN_SCALE_FACTOR").isEmpty())
+        Application::setAttribute(Qt::AA_EnableHighDpiScaling, true);
+    // HighDPI scale factor policy must be set before QGuiApplication is created
+    if (qgetenv("QT_SCALE_FACTOR_ROUNDING_POLICY").isEmpty())
+        Application::setHighDpiScaleFactorRoundingPolicy(Qt::HighDpiScaleFactorRoundingPolicy::PassThrough);
+#endif
+
     try {
         // Create Application
-        const QString appId = QLatin1String("qBittorrent-") + Utils::Misc::getUserIDString();
-        std::unique_ptr<Application> app(new Application(appId, argc, argv));
+        auto app = std::make_unique<Application>(argc, argv);
 
         const QBtCommandLineParameters params = app->commandLineArgs();
-
         if (!params.unknownParameter.isEmpty()) {
             throw CommandLineParameterError(QObject::tr("%1 is an unknown command line parameter.",
                                                         "--random-parameter is an unknown command line parameter.")
@@ -258,7 +264,7 @@ int main(int argc, char *argv[])
         if (params.shouldDaemonize) {
             app.reset(); // Destroy current application
             if (daemon(1, 0) == 0) {
-                app.reset(new Application(appId, argc, argv));
+                app = std::make_unique<Application>(argc, argv);
                 if (app->isRunning()) {
                     // Another instance had time to start.
                     return EXIT_FAILURE;
@@ -392,7 +398,7 @@ bool userAgreesWithLegalNotice()
     Q_ASSERT(!pref->getAcceptedLegal());
 
 #ifdef DISABLE_GUI
-    const QString eula = QString("\n*** %1 ***\n").arg(QObject::tr("Legal Notice"))
+    const QString eula = QString::fromLatin1("\n*** %1 ***\n").arg(QObject::tr("Legal Notice"))
         + QObject::tr("qBittorrent is a file sharing program. When you run a torrent, its data will be made available to others by means of upload. Any content you share is your sole responsibility.") + "\n\n"
         + QObject::tr("No further notices will be issued.") + "\n\n"
         + QObject::tr("Press %1 key to accept and continue...").arg("'y'") + '\n';
