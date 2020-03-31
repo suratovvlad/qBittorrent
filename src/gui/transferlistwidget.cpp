@@ -141,6 +141,7 @@ TransferListWidget::TransferListWidget(QWidget *parent, MainWindow *mainWindow)
     m_sortFilterModel->setFilterKeyColumn(TransferListModel::TR_NAME);
     m_sortFilterModel->setFilterRole(Qt::DisplayRole);
     m_sortFilterModel->setSortCaseSensitivity(Qt::CaseInsensitive);
+    m_sortFilterModel->setSortRole(TransferListModel::UnderlyingDataRole);
 
     setModel(m_sortFilterModel);
 
@@ -239,6 +240,197 @@ TransferListModel *TransferListWidget::getSourceModel() const
     return m_listModel;
 }
 
+QColor TransferListWidget::unknownStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::Unknown);
+}
+
+QColor TransferListWidget::forcedDownloadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::ForcedDownloading);
+}
+
+QColor TransferListWidget::downloadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::Downloading);
+}
+
+QColor TransferListWidget::downloadingMetadataStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::DownloadingMetadata);
+}
+
+QColor TransferListWidget::allocatingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::Allocating);
+}
+
+QColor TransferListWidget::stalledDownloadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::StalledDownloading);
+}
+
+QColor TransferListWidget::forcedUploadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::ForcedUploading);
+}
+
+QColor TransferListWidget::uploadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::Uploading);
+}
+
+QColor TransferListWidget::stalledUploadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::StalledUploading);
+}
+
+QColor TransferListWidget::checkingResumeDataStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::CheckingResumeData);
+}
+
+QColor TransferListWidget::queuedDownloadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::QueuedDownloading);
+}
+
+QColor TransferListWidget::queuedUploadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::QueuedUploading);
+}
+
+QColor TransferListWidget::checkingUploadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::CheckingUploading);
+}
+
+QColor TransferListWidget::checkingDownloadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::CheckingDownloading);
+}
+
+QColor TransferListWidget::pausedDownloadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::PausedDownloading);
+}
+
+QColor TransferListWidget::pausedUploadingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::PausedUploading);
+}
+
+QColor TransferListWidget::movingStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::Moving);
+}
+
+QColor TransferListWidget::missingFilesStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::MissingFiles);
+}
+
+QColor TransferListWidget::errorStateForeground() const
+{
+    return m_listModel->stateForeground(BitTorrent::TorrentState::Error);
+}
+
+void TransferListWidget::setUnknownStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::Unknown, color);
+}
+
+void TransferListWidget::setForcedDownloadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::ForcedDownloading, color);
+}
+
+void TransferListWidget::setDownloadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::Downloading, color);
+}
+
+void TransferListWidget::setDownloadingMetadataStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::DownloadingMetadata, color);
+}
+
+void TransferListWidget::setAllocatingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::Allocating, color);
+}
+
+void TransferListWidget::setStalledDownloadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::StalledDownloading, color);
+}
+
+void TransferListWidget::setForcedUploadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::ForcedUploading, color);
+}
+
+void TransferListWidget::setUploadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::Uploading, color);
+}
+
+void TransferListWidget::setStalledUploadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::StalledUploading, color);
+}
+
+void TransferListWidget::setCheckingResumeDataStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::CheckingResumeData, color);
+}
+
+void TransferListWidget::setQueuedDownloadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::QueuedDownloading, color);
+}
+
+void TransferListWidget::setQueuedUploadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::QueuedUploading, color);
+}
+
+void TransferListWidget::setCheckingUploadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::CheckingUploading, color);
+}
+
+void TransferListWidget::setCheckingDownloadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::CheckingDownloading, color);
+}
+
+void TransferListWidget::setPausedDownloadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::PausedDownloading, color);
+}
+
+void TransferListWidget::setPausedUploadingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::PausedUploading, color);
+}
+
+void TransferListWidget::setMovingStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::Moving, color);
+}
+
+void TransferListWidget::setMissingFilesStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::MissingFiles, color);
+}
+
+void TransferListWidget::setErrorStateForeground(const QColor &color)
+{
+    m_listModel->setStateForeground(BitTorrent::TorrentState::Error, color);
+}
+
+
 void TransferListWidget::previewFile(const QString &filePath)
 {
     Utils::Gui::openPath(filePath);
@@ -315,12 +507,9 @@ void TransferListWidget::setSelectedTorrentsLocation()
     if (torrents.isEmpty()) return;
 
     const QString oldLocation = torrents[0]->savePath();
-    qDebug("Old location is %s", qUtf8Printable(oldLocation));
-
     const QString newLocation = QFileDialog::getExistingDirectory(this, tr("Choose save path"), oldLocation,
                                             QFileDialog::DontConfirmOverwrite | QFileDialog::ShowDirsOnly | QFileDialog::HideNameFilterDetails);
     if (newLocation.isEmpty() || !QDir(newLocation).exists()) return;
-    qDebug("New location is %s", qUtf8Printable(newLocation));
 
     // Actually move storage
     for (BitTorrent::TorrentHandle *const torrent : torrents) {
@@ -811,7 +1000,7 @@ void TransferListWidget::renameSelectedTorrent()
     if (!torrent) return;
 
     // Ask for a new Name
-    bool ok;
+    bool ok = false;
     QString name = AutoExpandableDialog::getText(this, tr("Rename"), tr("New name:"), QLineEdit::Normal, torrent->name(), &ok);
     if (ok && !name.isEmpty()) {
         name.replace(QRegularExpression("\r?\n|\r"), " ");
@@ -1028,7 +1217,7 @@ void TransferListWidget::displayListMenu(const QPoint &)
     }
 
     // Tag Menu
-    QStringList tags(BitTorrent::Session::instance()->tags().toList());
+    QStringList tags(BitTorrent::Session::instance()->tags().values());
     std::sort(tags.begin(), tags.end(), Utils::String::naturalLessThan<Qt::CaseInsensitive>);
 
     QMenu *tagsMenu = listMenu->addMenu(UIThemeManager::instance()->getIcon("view-categories"), tr("Tags"));

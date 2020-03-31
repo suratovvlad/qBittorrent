@@ -24,8 +24,8 @@ macro(qbt_set_compiler_options)
             #"-Wno-error=sign-conversion -Wno-error=float-equal"
         )
 
+        # GCC 4.8 has problems with std::array and its initialization
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" AND CMAKE_CXX_COMPILER_VERSION VERSION_LESS 4.9)
-            # GCC 4.8 has problems with std::array and its initialization
             list(APPEND _GCC_COMMON_CXX_FLAGS "-Wno-error=missing-field-initializers")
         endif()
 
@@ -39,22 +39,11 @@ macro(qbt_set_compiler_options)
         endif (_PEDANTIC_IS_SUPPORTED)
 
         if (CMAKE_SYSTEM_NAME MATCHES Linux)
-            # if Glibc version is 2.20 or higher, set -D_DEFAULT_SOURCE
-            include(MacroGlibcDetect)
-            message(STATUS "Detecting Glibc version...")
-            glibc_detect(GLIBC_VERSION)
-            if(${GLIBC_VERSION})
-                if(GLIBC_VERSION LESS "220")
-                    message(STATUS "Glibc version is ${GLIBC_VERSION}")
-                else(GLIBC_VERSION LESS "220")
-                    message(STATUS "Glibc version is ${GLIBC_VERSION}, adding -D_DEFAULT_SOURCE")
-                    add_definitions(-D_DEFAULT_SOURCE)
-                endif(GLIBC_VERSION LESS "220")
-            endif(${GLIBC_VERSION})
-        endif (CMAKE_SYSTEM_NAME MATCHES Linux)
+            add_definitions(-D_DEFAULT_SOURCE)
+        endif()
 
+        # Clang 5.0 still doesn't support -Wstrict-null-sentinel
         if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
-            # Clang 5.0 still doesn't support -Wstrict-null-sentinel
             check_cxx_compiler_flag(-Wstrict-null-sentinel _STRICT_NULL_SENTINEL_IS_SUPPORTED)
             if (_STRICT_NULL_SENTINEL_IS_SUPPORTED)
                 list(APPEND _GCC_COMMON_CXX_FLAGS "-Wstrict-null-sentinel")
@@ -72,25 +61,10 @@ macro(qbt_set_compiler_options)
 
         string(APPEND CMAKE_C_FLAGS " ${_GCC_COMMON_C_AND_CXX_FLAGS_STRING}")
         string(APPEND CMAKE_CXX_FLAGS " ${_GCC_COMMON_C_AND_CXX_FLAGS_STRING} ${_GCC_COMMON_CXX_FLAGS_STRING}")
-
-        # check whether we can enable -Og optimization for debug build
-        check_cxx_compiler_flag(-Og _DEBUG_OPTIMIZATION_LEVEL_IS_SUPPORTED)
-
-        if (_DEBUG_OPTIMIZATION_LEVEL_IS_SUPPORTED)
-            set(QBT_ADDITONAL_FLAGS "-Og -g3 -pipe" CACHE STRING
-                "Additional qBittorent compile flags")
-            set(QBT_ADDITONAL_CXX_FLAGS "-Og -g3 -pipe" CACHE STRING
-                "Additional qBittorent C++ compile flags")
-        else(_DEBUG_OPTIMIZATION_LEVEL_IS_SUPPORTED)
-            set(QBT_ADDITONAL_FLAGS "-O0 -g3 -pipe" CACHE STRING
-                "Additional qBittorent compile flags")
-            set(QBT_ADDITONAL_CXX_FLAGS "-O0 -g3 -pipe" CACHE STRING
-                "Additional qBittorent C++ compile flags")
-        endif (_DEBUG_OPTIMIZATION_LEVEL_IS_SUPPORTED)
     endif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR "${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
 
     if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
-        set(QBT_ADDITONAL_FLAGS "-wd4290 -wd4275 -wd4251 /W4" CACHE STRING "Additional qBittorent compile flags")
+        set(QBT_ADDITONAL_FLAGS "/wd4251 /wd4275 /wd4290  /W4" CACHE STRING "Additional qBittorent compile flags")
     endif ()
 
     string(APPEND CMAKE_C_FLAGS " ${QBT_ADDITONAL_FLAGS}")
@@ -98,4 +72,3 @@ macro(qbt_set_compiler_options)
 
 # endif (NOT QBT_ADDITONAL_FLAGS)
 endmacro(qbt_set_compiler_options)
-

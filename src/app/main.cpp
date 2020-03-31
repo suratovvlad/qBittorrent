@@ -79,7 +79,6 @@ Q_IMPORT_PLUGIN(QICOPlugin)
 
 #include "base/preferences.h"
 #include "base/profile.h"
-#include "base/utils/misc.h"
 #include "application.h"
 #include "cmdoptions.h"
 #include "upgrade.h"
@@ -156,13 +155,17 @@ int main(int argc, char *argv[])
     // We must save it here because QApplication constructor may change it
     bool isOneArg = (argc == 2);
 
+#if !defined(DISABLE_GUI) && (QT_VERSION >= QT_VERSION_CHECK(5, 14, 0))
+    // Attribute Qt::AA_EnableHighDpiScaling must be set before QCoreApplication is created
+    if (qgetenv("QT_ENABLE_HIGHDPI_SCALING").isEmpty() && qgetenv("QT_AUTO_SCREEN_SCALE_FACTOR").isEmpty())
+        Application::setAttribute(Qt::AA_EnableHighDpiScaling, true);
+#endif
+
     try {
         // Create Application
-        const QString appId = QLatin1String("qBittorrent-") + Utils::Misc::getUserIDString();
-        std::unique_ptr<Application> app(new Application(appId, argc, argv));
+        auto app = std::make_unique<Application>(argc, argv);
 
         const QBtCommandLineParameters params = app->commandLineArgs();
-
         if (!params.unknownParameter.isEmpty()) {
             throw CommandLineParameterError(QObject::tr("%1 is an unknown command line parameter.",
                                                         "--random-parameter is an unknown command line parameter.")
@@ -191,22 +194,25 @@ int main(int argc, char *argv[])
         if (!qputenv("QBITTORRENT", QBT_VERSION))
             fprintf(stderr, "Couldn't set environment variable...\n");
 
+        const bool firstTimeUser = !Preferences::instance()->getAcceptedLegal();
+        if (firstTimeUser) {
 #ifndef DISABLE_GUI
-        if (!userAgreesWithLegalNotice())
-            return EXIT_SUCCESS;
+            if (!userAgreesWithLegalNotice())
+                return EXIT_SUCCESS;
 
 #elif defined(Q_OS_WIN)
-        if (_isatty(_fileno(stdin))
-            && _isatty(_fileno(stdout))
-            && !userAgreesWithLegalNotice())
-            return EXIT_SUCCESS;
+            if (_isatty(_fileno(stdin))
+                && _isatty(_fileno(stdout))
+                && !userAgreesWithLegalNotice())
+                return EXIT_SUCCESS;
 #else
-        if (!params.shouldDaemonize
-            && isatty(fileno(stdin))
-            && isatty(fileno(stdout))
-            && !userAgreesWithLegalNotice())
-            return EXIT_SUCCESS;
+            if (!params.shouldDaemonize
+                && isatty(fileno(stdin))
+                && isatty(fileno(stdout))
+                && !userAgreesWithLegalNotice())
+                return EXIT_SUCCESS;
 #endif
+        }
 
         // Check if qBittorrent is already running for this user
         if (app->isRunning()) {
@@ -256,21 +262,29 @@ int main(int argc, char *argv[])
         app->setAttribute(Qt::AA_DontShowIconsInMenus);
 #endif
 
+        if (!firstTimeUser) {
+            handleChangedDefaults(DefaultPreferencesMode::Legacy);
+
 #ifndef DISABLE_GUI
-        if (!upgrade()) return EXIT_FAILURE;
+            if (!upgrade()) return EXIT_FAILURE;
 #elif defined(Q_OS_WIN)
-        if (!upgrade(_isatty(_fileno(stdin))
-                     && _isatty(_fileno(stdout)))) return EXIT_FAILURE;
+            if (!upgrade(_isatty(_fileno(stdin))
+                         && _isatty(_fileno(stdout)))) return EXIT_FAILURE;
 #else
-        if (!upgrade(!params.shouldDaemonize
-                     && isatty(fileno(stdin))
-                     && isatty(fileno(stdout)))) return EXIT_FAILURE;
+            if (!upgrade(!params.shouldDaemonize
+                         && isatty(fileno(stdin))
+                         && isatty(fileno(stdout)))) return EXIT_FAILURE;
 #endif
+        }
+        else {
+            handleChangedDefaults(DefaultPreferencesMode::Current);
+        }
+
 #if defined(DISABLE_GUI) && !defined(Q_OS_WIN)
         if (params.shouldDaemonize) {
             app.reset(); // Destroy current application
             if (daemon(1, 0) == 0) {
-                app.reset(new Application(appId, argc, argv));
+                app = std::make_unique<Application>(argc, argv);
                 if (app->isRunning()) {
                     // Another instance had time to start.
                     return EXIT_FAILURE;
@@ -401,8 +415,7 @@ void displayBadArgMessage(const QString &message)
 bool userAgreesWithLegalNotice()
 {
     Preferences *const pref = Preferences::instance();
-    if (pref->getAcceptedLegal()) // Already accepted once
-        return true;
+    Q_ASSERT(!pref->getAcceptedLegal());
 
 #ifdef DISABLE_GUI
     const QString eula = QString("\n*** %1 ***\n").arg(QObject::tr("Legal Notice"))

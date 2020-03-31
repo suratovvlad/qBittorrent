@@ -232,6 +232,8 @@ void AppController::preferencesAction()
     for (const Utils::Net::Subnet &subnet : asConst(pref->getWebUiAuthSubnetWhitelist()))
         authSubnetWhitelistStringList << Utils::Net::subnetToString(subnet);
     data["bypass_auth_subnet_whitelist"] = authSubnetWhitelistStringList.join("\n");
+    data["web_ui_max_auth_fail_count"] = pref->getWebUIMaxAuthFailCount();
+    data["web_ui_ban_duration"] = static_cast<int>(pref->getWebUIBanDuration().count());
     data["web_ui_session_timeout"] = pref->getWebUISessionTimeout();
     // Use alternative Web UI
     data["alternative_webui_enabled"] = pref->isAltWebUiEnabled();
@@ -239,6 +241,7 @@ void AppController::preferencesAction()
     // Security
     data["web_ui_clickjacking_protection_enabled"] = pref->isWebUiClickjackingProtectionEnabled();
     data["web_ui_csrf_protection_enabled"] = pref->isWebUiCSRFProtectionEnabled();
+    data["web_ui_secure_cookie_enabled"] = pref->isWebUiSecureCookieEnabled();
     data["web_ui_host_header_validation_enabled"] = pref->isWebUIHostHeaderValidationEnabled();
     // Update my dynamic domain name
     data["dyndns_enabled"] = pref->isDynDNSEnabled();
@@ -280,6 +283,8 @@ void AppController::preferencesAction()
     data["enable_os_cache"] = session->useOSCache();
     // Coalesce reads & writes
     data["enable_coalesce_read_write"] = session->isCoalesceReadWriteEnabled();
+    // Piece Extent Affinity
+    data["enable_piece_extent_affinity"] = session->usePieceExtentAffinity();
     // Suggest mode
     data["enable_upload_suggestions"] = session->isSuggestModeEnabled();
     // Send buffer watermark
@@ -308,6 +313,8 @@ void AppController::preferencesAction()
     data["announce_to_all_trackers"] = session->announceToAllTrackers();
     data["announce_to_all_tiers"] = session->announceToAllTiers();
     data["announce_ip"] = session->announceIP();
+    // Stop tracker timeout
+    data["stop_tracker_timeout"] = session->stopTrackerTimeout();
 
     setResult(data);
 }
@@ -596,6 +603,10 @@ void AppController::setPreferencesAction()
         // recognize new lines and commas as delimiters
         pref->setWebUiAuthSubnetWhitelist(it.value().toString().split(QRegularExpression("\n|,"), QString::SkipEmptyParts));
     }
+    if (hasKey("web_ui_max_auth_fail_count"))
+        pref->setWebUIMaxAuthFailCount(it.value().toInt());
+    if (hasKey("web_ui_ban_duration"))
+        pref->setWebUIBanDuration(std::chrono::seconds {it.value().toInt()});
     if (hasKey("web_ui_session_timeout"))
         pref->setWebUISessionTimeout(it.value().toInt());
     // Use alternative Web UI
@@ -608,6 +619,8 @@ void AppController::setPreferencesAction()
         pref->setWebUiClickjackingProtectionEnabled(it.value().toBool());
     if (hasKey("web_ui_csrf_protection_enabled"))
         pref->setWebUiCSRFProtectionEnabled(it.value().toBool());
+    if (hasKey("web_ui_secure_cookie_enabled"))
+        pref->setWebUiSecureCookieEnabled(it.value().toBool());
     if (hasKey("web_ui_host_header_validation_enabled"))
         pref->setWebUIHostHeaderValidationEnabled(it.value().toBool());
     // Update my dynamic domain name
@@ -644,8 +657,8 @@ void AppController::setPreferencesAction()
         });
         const QString ifaceName = (ifacesIter != ifaces.cend()) ? ifacesIter->humanReadableName() : QString {};
 
-	    session->setNetworkInterface(ifaceValue);
-	    session->setNetworkInterfaceName(ifaceName);
+        session->setNetworkInterface(ifaceValue);
+        session->setNetworkInterfaceName(ifaceName);
     }
     // Current network interface address
     if (hasKey("current_interface_address")) {
@@ -683,6 +696,9 @@ void AppController::setPreferencesAction()
     // Coalesce reads & writes
     if (hasKey("enable_coalesce_read_write"))
         session->setCoalesceReadWriteEnabled(it.value().toBool());
+    // Piece extent affinity
+    if (hasKey("enable_piece_extent_affinity"))
+        session->setPieceExtentAffinity(it.value().toBool());
     // Suggest mode
     if (hasKey("enable_upload_suggestions"))
         session->setSuggestMode(it.value().toBool());
@@ -730,6 +746,9 @@ void AppController::setPreferencesAction()
         const QHostAddress announceAddr {it.value().toString().trimmed()};
         session->setAnnounceIP(announceAddr.isNull() ? QString {} : announceAddr.toString());
     }
+    // Stop tracker timeout
+    if (hasKey("stop_tracker_timeout"))
+        session->setStopTrackerTimeout(it.value().toInt());
 
     // Save preferences
     pref->apply();

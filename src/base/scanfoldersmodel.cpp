@@ -57,22 +57,16 @@ struct ScanFoldersModel::PathData
 
 ScanFoldersModel *ScanFoldersModel::m_instance = nullptr;
 
-bool ScanFoldersModel::initInstance(QObject *parent)
+void ScanFoldersModel::initInstance()
 {
-    if (!m_instance) {
-        m_instance = new ScanFoldersModel(parent);
-        return true;
-    }
-
-    return false;
+    if (!m_instance)
+        m_instance = new ScanFoldersModel;
 }
 
 void ScanFoldersModel::freeInstance()
 {
-    if (m_instance) {
-        delete m_instance;
-        m_instance = nullptr;
-    }
+    delete m_instance;
+    m_instance = nullptr;
 }
 
 ScanFoldersModel *ScanFoldersModel::instance()
@@ -355,10 +349,14 @@ void ScanFoldersModel::addTorrentsToSession(const QStringList &pathList)
         qDebug("File %s added", qUtf8Printable(file));
 
         BitTorrent::AddTorrentParams params;
-        if (downloadInWatchFolder(file))
+        if (downloadInWatchFolder(file)) {
             params.savePath = QFileInfo(file).dir().path();
-        else if (!downloadInDefaultFolder(file))
+            params.useAutoTMM = TriStateBool::False;
+        }
+        else if (!downloadInDefaultFolder(file)) {
             params.savePath = downloadPathTorrentFolder(file);
+            params.useAutoTMM = TriStateBool::False;
+        }
 
         if (file.endsWith(".magnet", Qt::CaseInsensitive)) {
             QFile f(file);

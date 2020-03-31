@@ -30,13 +30,17 @@
 #define PEERLISTWIDGET_H
 
 #include <QHash>
+#include <QSet>
 #include <QTreeView>
 
+class QHostAddress;
 class QStandardItem;
 class QStandardItemModel;
 
 class PeerListSortModel;
 class PropertiesWidget;
+
+struct PeerEndpoint;
 
 namespace BitTorrent
 {
@@ -70,10 +74,10 @@ private slots:
     void banSelectedPeers();
     void copySelectedPeers();
     void handleSortColumnChanged(int col);
-    void handleResolved(const QString &ip, const QString &hostname);
+    void handleResolved(const QHostAddress &ip, const QString &hostname) const;
 
 private:
-    void updatePeer(const QString &ip, const BitTorrent::TorrentHandle *torrent, const BitTorrent::PeerInfo &peer, bool &isNewPeer);
+    void updatePeer(const BitTorrent::TorrentHandle *torrent, const BitTorrent::PeerInfo &peer, bool &isNewPeer);
 
     void wheelEvent(QWheelEvent *event) override;
 
@@ -81,7 +85,8 @@ private:
     PeerListSortModel *m_proxyModel = nullptr;
     PropertiesWidget *m_properties = nullptr;
     Net::ReverseResolution *m_resolver = nullptr;
-    QHash<QString, QStandardItem *> m_peerItems;
+    QHash<PeerEndpoint, QStandardItem *> m_peerItems;
+    QHash<QHostAddress, QSet<QStandardItem *>> m_itemsByIP;  // must be kept in sync with `m_peerItems`
     bool m_resolveCountries;
 };
 

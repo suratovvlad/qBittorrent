@@ -216,7 +216,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Name filter
     m_searchFilter = new LineEdit(this);
-    m_searchFilter->setPlaceholderText(tr("Filter torrent list..."));
+    m_searchFilter->setPlaceholderText(tr("Filter torrent names..."));
     m_searchFilter->setFixedWidth(Utils::Gui::scaledSize(this, 200));
     m_searchFilter->setContextMenuPolicy(Qt::CustomContextMenu);
     connect(m_searchFilter, &QWidget::customContextMenuRequested, this, &MainWindow::showFilterContextMenu);
@@ -678,7 +678,7 @@ void MainWindow::displayRSSTab(bool enable)
 #endif
         }
     }
-    else if (m_rssWidget) {
+    else {
         delete m_rssWidget;
     }
 }
@@ -714,7 +714,7 @@ void MainWindow::displaySearchTab(bool enable)
                 tr("Search"));
         }
     }
-    else if (m_searchWidget) {
+    else {
         delete m_searchWidget;
     }
 }
@@ -1170,8 +1170,7 @@ void MainWindow::closeEvent(QCloseEvent *e)
     }
 
     // abort search if any
-    if (m_searchWidget)
-        delete m_searchWidget;
+    delete m_searchWidget;
 
     hide();
 #ifndef Q_OS_MACOS
@@ -1530,7 +1529,7 @@ void MainWindow::reloadSessionStats()
 #else
     if (m_systrayIcon) {
 #ifdef Q_OS_UNIX
-        const QString toolTip = QString(QLatin1String(
+        const QString toolTip = QString::fromLatin1(
                 "<div style='background-color: #678db2; color: #fff;height: 18px; font-weight: bold; margin-bottom: 5px;'>"
                 "qBittorrent"
                 "</div>"
@@ -1539,7 +1538,7 @@ void MainWindow::reloadSessionStats()
                 "</div>"
                 "<div style='vertical-align: baseline; height: 18px;'>"
                 "<img src=':/icons/skin/seeding.svg' height='14'/>&nbsp;%2"
-                "</div>"))
+                "</div>")
             .arg(tr("DL speed: %1", "e.g: Download speed: 10 KiB/s").arg(Utils::Misc::friendlyUnit(status.payloadDownloadRate, true))
                  , tr("UP speed: %1", "e.g: Upload speed: 10 KiB/s").arg(Utils::Misc::friendlyUnit(status.payloadUploadRate, true)));
 #else
@@ -1778,13 +1777,14 @@ void MainWindow::on_actionSearchWidget_triggered()
 
 #ifdef Q_OS_WIN
             const QMessageBox::StandardButton buttonPressed = QMessageBox::question(this, tr("Old Python Runtime")
-                , tr("Your Python version (%1) is outdated. Minimum requirement: 2.7.9 / 3.3.0.\nDo you want to install a newer version now?")
+                , tr("Your Python version (%1) is outdated. Minimum requirement: 3.3.0.\nDo you want to install a newer version now?")
+                    .arg(pyInfo.version)
                 , (QMessageBox::Yes | QMessageBox::No), QMessageBox::Yes);
             if (buttonPressed == QMessageBox::Yes)
                 installPython();
 #else
             QMessageBox::information(this, tr("Old Python Runtime")
-                , tr("Your Python version (%1) is outdated. Please upgrade to latest version for search engines to work.\nMinimum requirement: 2.7.9 / 3.3.0.")
+                , tr("Your Python version (%1) is outdated. Please upgrade to latest version for search engines to work.\nMinimum requirement: 3.3.0.")
                 .arg(pyInfo.version));
 #endif
             return;
@@ -1878,7 +1878,7 @@ void MainWindow::on_actionExecutionLogs_triggered(bool checked)
         m_tabs->setTabIcon(indexTab, UIThemeManager::instance()->getIcon("view-calendar-journal"));
 #endif
     }
-    else if (m_executionLog) {
+    else {
         delete m_executionLog;
     }
 
@@ -2015,9 +2015,9 @@ void MainWindow::installPython()
     setCursor(QCursor(Qt::WaitCursor));
     // Download python
 #ifdef QBT_APP_64BIT
-    const QString installerURL = "https://www.python.org/ftp/python/3.7.4/python-3.7.4-amd64.exe";
+    const QString installerURL = "https://www.python.org/ftp/python/3.8.1/python-3.8.1-amd64.exe";
 #else
-    const QString installerURL = "https://www.python.org/ftp/python/3.7.4/python-3.7.4.exe";
+    const QString installerURL = "https://www.python.org/ftp/python/3.8.1/python-3.8.1.exe";
 #endif
     Net::DownloadManager::instance()->download(
                 Net::DownloadRequest(installerURL).saveToFile(true)

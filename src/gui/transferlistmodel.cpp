@@ -38,7 +38,11 @@
 #include "base/bittorrent/session.h"
 #include "base/bittorrent/torrenthandle.h"
 #include "base/global.h"
+#include "base/preferences.h"
+#include "base/unicodestrings.h"
 #include "base/utils/fs.h"
+#include "base/utils/misc.h"
+#include "base/utils/string.h"
 
 static QIcon getIconByState(BitTorrent::TorrentState state);
 static QColor getColorByState(BitTorrent::TorrentState state);
@@ -58,8 +62,52 @@ static bool isDarkTheme();
 // TransferListModel
 
 TransferListModel::TransferListModel(QObject *parent)
-    : QAbstractListModel(parent)
+    : QAbstractListModel {parent}
+    , m_statusStrings {
+          {BitTorrent::TorrentState::Downloading, tr("Downloading")},
+          {BitTorrent::TorrentState::StalledDownloading, tr("Stalled", "Torrent is waiting for download to begin")},
+          {BitTorrent::TorrentState::DownloadingMetadata, tr("Downloading metadata", "Used when loading a magnet link")},
+          {BitTorrent::TorrentState::ForcedDownloading, tr("[F] Downloading", "Used when the torrent is forced started. You probably shouldn't translate the F.")},
+          {BitTorrent::TorrentState::Allocating, tr("Allocating", "qBittorrent is allocating the files on disk")},
+          {BitTorrent::TorrentState::Uploading, tr("Seeding", "Torrent is complete and in upload-only mode")},
+          {BitTorrent::TorrentState::StalledUploading, tr("Seeding", "Torrent is complete and in upload-only mode")},
+          {BitTorrent::TorrentState::ForcedUploading, tr("[F] Seeding", "Used when the torrent is forced started. You probably shouldn't translate the F.")},
+          {BitTorrent::TorrentState::QueuedDownloading, tr("Queued", "Torrent is queued")},
+          {BitTorrent::TorrentState::QueuedUploading, tr("Queued", "Torrent is queued")},
+          {BitTorrent::TorrentState::CheckingDownloading, tr("Checking", "Torrent local data is being checked")},
+          {BitTorrent::TorrentState::CheckingUploading, tr("Checking", "Torrent local data is being checked")},
+          {BitTorrent::TorrentState::CheckingResumeData, tr("Checking resume data", "Used when loading the torrents from disk after qbt is launched. It checks the correctness of the .fastresume file. Normally it is completed in a fraction of a second, unless loading many many torrents.")},
+          {BitTorrent::TorrentState::PausedDownloading, tr("Paused")},
+          {BitTorrent::TorrentState::PausedUploading, tr("Completed")},
+          {BitTorrent::TorrentState::Moving, tr("Moving", "Torrent local data are being moved/relocated")},
+          {BitTorrent::TorrentState::MissingFiles, tr("Missing Files")},
+          {BitTorrent::TorrentState::Error, tr("Errored", "Torrent status, the torrent has an error")}
+      }
+    , m_stateForegroundColors {
+        {BitTorrent::TorrentState::Unknown, getColorByState(BitTorrent::TorrentState::Unknown)},
+        {BitTorrent::TorrentState::ForcedDownloading, getColorByState(BitTorrent::TorrentState::ForcedDownloading)},
+        {BitTorrent::TorrentState::Downloading, getColorByState(BitTorrent::TorrentState::Downloading)},
+        {BitTorrent::TorrentState::DownloadingMetadata, getColorByState(BitTorrent::TorrentState::DownloadingMetadata)},
+        {BitTorrent::TorrentState::Allocating, getColorByState(BitTorrent::TorrentState::Allocating)},
+        {BitTorrent::TorrentState::StalledDownloading, getColorByState(BitTorrent::TorrentState::StalledDownloading)},
+        {BitTorrent::TorrentState::ForcedUploading, getColorByState(BitTorrent::TorrentState::ForcedUploading)},
+        {BitTorrent::TorrentState::Uploading, getColorByState(BitTorrent::TorrentState::Uploading)},
+        {BitTorrent::TorrentState::StalledUploading, getColorByState(BitTorrent::TorrentState::StalledUploading)},
+        {BitTorrent::TorrentState::CheckingResumeData, getColorByState(BitTorrent::TorrentState::CheckingResumeData)},
+        {BitTorrent::TorrentState::QueuedDownloading, getColorByState(BitTorrent::TorrentState::QueuedDownloading)},
+        {BitTorrent::TorrentState::QueuedUploading, getColorByState(BitTorrent::TorrentState::QueuedUploading)},
+        {BitTorrent::TorrentState::CheckingUploading, getColorByState(BitTorrent::TorrentState::CheckingUploading)},
+        {BitTorrent::TorrentState::CheckingDownloading, getColorByState(BitTorrent::TorrentState::CheckingDownloading)},
+        {BitTorrent::TorrentState::PausedDownloading, getColorByState(BitTorrent::TorrentState::PausedDownloading)},
+        {BitTorrent::TorrentState::PausedUploading, getColorByState(BitTorrent::TorrentState::PausedUploading)},
+        {BitTorrent::TorrentState::Moving, getColorByState(BitTorrent::TorrentState::Moving)},
+        {BitTorrent::TorrentState::MissingFiles, getColorByState(BitTorrent::TorrentState::MissingFiles)},
+        {BitTorrent::TorrentState::Error, getColorByState(BitTorrent::TorrentState::Error)}
+    }
 {
+    configure();
+    connect(Preferences::instance(), &Preferences::changed, this, &TransferListModel::configure);
+
     // Load the torrents
     using namespace BitTorrent;
     for (TorrentHandle *const torrent : asConst(Session::instance()->torrents()))
@@ -158,23 +206,174 @@ QVariant TransferListModel::headerData(int section, Qt::Orientation orientation,
     return {};
 }
 
-QVariant TransferListModel::data(const QModelIndex &index, const int role) const
+QString TransferListModel::displayValue(const BitTorrent::TorrentHandle *torrent, const int column) const
 {
-    if (!index.isValid()) return {};
+    bool hideValues = false;
+    if (m_hideZeroValuesMode == HideZeroValuesMode::Always)
+        hideValues = true;
+    else if (m_hideZeroValuesMode != HideZeroValuesMode::Never)
+        hideValues = (torrent->state() == BitTorrent::TorrentState::PausedDownloading);
 
-    const BitTorrent::TorrentHandle *torrent = m_torrentList.value(index.row());
-    if (!torrent) return {};
+    const auto availabilityString = [hideValues](const qreal value) -> QString
+    {
+        return ((value <= 0) && hideValues)
+                ? QString {} : Utils::String::fromDouble(value, 3);
+    };
 
-    if ((role == Qt::DecorationRole) && (index.column() == TR_NAME))
-        return getIconByState(torrent->state());
+    const auto unitString = [hideValues](const qint64 value, const bool isSpeedUnit = false) -> QString
+    {
+        return ((value == 0) && hideValues)
+                ? QString {} : Utils::Misc::friendlyUnit(value, isSpeedUnit);
+    };
 
-    if (role == Qt::ForegroundRole)
-        return getColorByState(torrent->state());
+    const auto limitString = [hideValues](const qint64 value) -> QString
+    {
+        if ((value == 0) && hideValues)
+            return {};
 
-    if ((role != Qt::DisplayRole) && (role != Qt::UserRole))
-        return {};
+        return (value > 0)
+                ? Utils::Misc::friendlyUnit(value, true)
+                : QString::fromUtf8(C_INFINITY);
+    };
 
-    switch (index.column()) {
+    const auto amountString = [hideValues](const qint64 value, const qint64 total) -> QString
+    {
+        return ((value == 0) && (total == 0) && hideValues)
+                ? QString {}
+                : QString::number(value) + " (" + QString::number(total) + ')';
+    };
+
+    const auto ratioString = [hideValues](const qreal value) -> QString
+    {
+        if ((value <= 0) && hideValues)
+            return {};
+
+         return ((static_cast<int>(value) == -1) || (value > BitTorrent::TorrentHandle::MAX_RATIO))
+                  ? QString::fromUtf8(C_INFINITY) : Utils::String::fromDouble(value, 2);
+    };
+
+    const auto queuePositionString = [](const qint64 value) -> QString
+    {
+        return (value > 0) ? QString::number(value) : "*";
+    };
+
+    const auto lastActivityString = [hideValues](qint64 value) -> QString
+    {
+        if (hideValues && ((value < 0) || (value >= MAX_ETA)))
+            return QString {};
+
+        // Show '< 1m ago' when elapsed time is 0
+        if (value == 0)
+            value = 1;
+
+        return (value >= 0)
+            ? tr("%1 ago", "e.g.: 1h 20m ago").arg(Utils::Misc::userFriendlyDuration(value))
+            : Utils::Misc::userFriendlyDuration(value);
+    };
+
+    const auto timeElapsedString = [](const qint64 elapsedTime, const qint64 seedingTime) -> QString
+    {
+        if (seedingTime <= 0)
+            return Utils::Misc::userFriendlyDuration(elapsedTime);
+
+        return tr("%1 (seeded for %2)", "e.g. 4m39s (seeded for 3m10s)")
+                .arg(Utils::Misc::userFriendlyDuration(elapsedTime)
+                     , Utils::Misc::userFriendlyDuration(seedingTime));
+    };
+
+    const auto tagsString = [](const QSet<QString> &tags) -> QString
+    {
+        QStringList tagsList = tags.values();
+        tagsList.sort();
+        return tagsList.join(", ");
+    };
+
+    const auto progressString = [](qreal progress) -> QString
+    {
+        progress *= 100;
+        return (static_cast<int>(progress) == 100)
+                ? QString::fromLatin1("100%")
+                : Utils::String::fromDouble(progress, 1) + '%';
+    };
+
+    const auto statusString = [this](const BitTorrent::TorrentState state, const QString &errorMessage) -> QString
+    {
+        return (state == BitTorrent::TorrentState::Error)
+                   ? m_statusStrings[state] + ": " + errorMessage
+                   : m_statusStrings[state];
+    };
+
+    switch (column) {
+    case TR_NAME:
+        return torrent->name();
+    case TR_QUEUE_POSITION:
+        return queuePositionString(torrent->queuePosition());
+    case TR_SIZE:
+        return unitString(torrent->wantedSize());
+    case TR_PROGRESS:
+        return progressString(torrent->progress());
+    case TR_STATUS:
+        return statusString(torrent->state(), torrent->error());
+    case TR_SEEDS:
+        return amountString(torrent->seedsCount(), torrent->totalSeedsCount());
+    case TR_PEERS:
+        return amountString(torrent->leechsCount(), torrent->totalLeechersCount());
+    case TR_DLSPEED:
+        return unitString(torrent->downloadPayloadRate(), true);
+    case TR_UPSPEED:
+        return unitString(torrent->uploadPayloadRate(), true);
+    case TR_ETA:
+        return Utils::Misc::userFriendlyDuration(torrent->eta(), MAX_ETA);
+    case TR_RATIO:
+        return ratioString(torrent->realRatio());
+    case TR_RATIO_LIMIT:
+        return ratioString(torrent->maxRatio());
+    case TR_CATEGORY:
+        return torrent->category();
+    case TR_TAGS:
+        return tagsString(torrent->tags());
+    case TR_ADD_DATE:
+        return torrent->addedTime().toLocalTime().toString(Qt::DefaultLocaleShortDate);
+    case TR_SEED_DATE:
+        return torrent->completedTime().toLocalTime().toString(Qt::DefaultLocaleShortDate);
+    case TR_TRACKER:
+        return torrent->currentTracker();
+    case TR_DLLIMIT:
+        return limitString(torrent->downloadLimit());
+    case TR_UPLIMIT:
+        return limitString(torrent->uploadLimit());
+    case TR_AMOUNT_DOWNLOADED:
+        return unitString(torrent->totalDownload());
+    case TR_AMOUNT_UPLOADED:
+        return unitString(torrent->totalUpload());
+    case TR_AMOUNT_DOWNLOADED_SESSION:
+        return unitString(torrent->totalPayloadDownload());
+    case TR_AMOUNT_UPLOADED_SESSION:
+        return unitString(torrent->totalPayloadUpload());
+    case TR_AMOUNT_LEFT:
+        return unitString(torrent->incompletedSize());
+    case TR_TIME_ELAPSED:
+        return timeElapsedString(torrent->activeTime(), torrent->seedingTime());
+    case TR_SAVE_PATH:
+        return Utils::Fs::toNativePath(torrent->savePath());
+    case TR_COMPLETED:
+        return unitString(torrent->completedSize());
+    case TR_SEEN_COMPLETE_DATE:
+        return torrent->lastSeenComplete().toString();
+    case TR_LAST_ACTIVITY:
+        return lastActivityString((torrent->isPaused() || torrent->isChecking()) ? -1 : torrent->timeSinceActivity());
+    case TR_AVAILABILITY:
+        return availabilityString(torrent->distributedCopies());
+    case TR_TOTAL_SIZE:
+        return unitString(torrent->totalSize());
+    }
+
+    return {};
+}
+
+QVariant TransferListModel::internalValue(const BitTorrent::TorrentHandle *torrent, const int column, const bool alt) const
+{
+    switch (column) {
     case TR_NAME:
         return torrent->name();
     case TR_QUEUE_POSITION:
@@ -182,13 +381,13 @@ QVariant TransferListModel::data(const QModelIndex &index, const int role) const
     case TR_SIZE:
         return torrent->wantedSize();
     case TR_PROGRESS:
-        return torrent->progress();
+        return torrent->progress() * 100;
     case TR_STATUS:
-        return (role == Qt::DisplayRole) ? QVariant::fromValue(torrent->state()) : torrent->error();
+        return QVariant::fromValue(torrent->state());
     case TR_SEEDS:
-        return (role == Qt::DisplayRole) ? torrent->seedsCount() : torrent->totalSeedsCount();
+        return !alt ? torrent->seedsCount() : torrent->totalSeedsCount();
     case TR_PEERS:
-        return (role == Qt::DisplayRole) ? torrent->leechsCount() : torrent->totalLeechersCount();
+        return !alt ? torrent->leechsCount() : torrent->totalLeechersCount();
     case TR_DLSPEED:
         return torrent->downloadPayloadRate();
     case TR_UPSPEED:
@@ -199,11 +398,8 @@ QVariant TransferListModel::data(const QModelIndex &index, const int role) const
         return torrent->realRatio();
     case TR_CATEGORY:
         return torrent->category();
-    case TR_TAGS: {
-            QStringList tagsList = torrent->tags().values();
-            tagsList.sort();
-            return tagsList.join(", ");
-        }
+    case TR_TAGS:
+        return QStringList {torrent->tags().values()};
     case TR_ADD_DATE:
         return torrent->addedTime();
     case TR_SEED_DATE:
@@ -225,7 +421,7 @@ QVariant TransferListModel::data(const QModelIndex &index, const int role) const
     case TR_AMOUNT_LEFT:
         return torrent->incompletedSize();
     case TR_TIME_ELAPSED:
-        return (role == Qt::DisplayRole) ? torrent->activeTime() : torrent->seedingTime();
+        return !alt ? torrent->activeTime() : torrent->seedingTime();
     case TR_SAVE_PATH:
         return Utils::Fs::toNativePath(torrent->savePath());
     case TR_COMPLETED:
@@ -235,13 +431,60 @@ QVariant TransferListModel::data(const QModelIndex &index, const int role) const
     case TR_SEEN_COMPLETE_DATE:
         return torrent->lastSeenComplete();
     case TR_LAST_ACTIVITY:
-        if (torrent->isPaused() || torrent->isChecking())
-            return -1;
-        return torrent->timeSinceActivity();
+        return (torrent->isPaused() || torrent->isChecking()) ? -1 : torrent->timeSinceActivity();
     case TR_AVAILABILITY:
         return torrent->distributedCopies();
     case TR_TOTAL_SIZE:
         return torrent->totalSize();
+    }
+
+    return {};
+}
+
+QVariant TransferListModel::data(const QModelIndex &index, const int role) const
+{
+    if (!index.isValid()) return {};
+
+    const BitTorrent::TorrentHandle *torrent = m_torrentList.value(index.row());
+    if (!torrent) return {};
+
+    switch (role) {
+    case Qt::ForegroundRole:
+        return stateForeground(torrent->state());
+    case Qt::DisplayRole:
+        return displayValue(torrent, index.column());
+    case UnderlyingDataRole:
+        return internalValue(torrent, index.column());
+    case AdditionalUnderlyingDataRole:
+        return internalValue(torrent, index.column(), true);
+    case Qt::DecorationRole:
+        if (index.column() == TR_NAME)
+            return getIconByState(torrent->state());
+        break;
+    case Qt::TextAlignmentRole:
+        switch (index.column()) {
+        case TR_AMOUNT_DOWNLOADED:
+        case TR_AMOUNT_UPLOADED:
+        case TR_AMOUNT_DOWNLOADED_SESSION:
+        case TR_AMOUNT_UPLOADED_SESSION:
+        case TR_AMOUNT_LEFT:
+        case TR_COMPLETED:
+        case TR_SIZE:
+        case TR_TOTAL_SIZE:
+        case TR_ETA:
+        case TR_SEEDS:
+        case TR_PEERS:
+        case TR_UPSPEED:
+        case TR_DLSPEED:
+        case TR_UPLIMIT:
+        case TR_DLLIMIT:
+        case TR_RATIO_LIMIT:
+        case TR_RATIO:
+        case TR_QUEUE_POSITION:
+        case TR_LAST_ACTIVITY:
+        case TR_AVAILABILITY:
+            return QVariant {Qt::AlignRight | Qt::AlignVCenter};
+        }
     }
 
     return {};
@@ -335,6 +578,34 @@ void TransferListModel::handleTorrentsUpdated(const QVector<BitTorrent::TorrentH
         // save the overhead when more than half of the torrent list needs update
         emit dataChanged(index(0, 0), index((rowCount() - 1), columns));
     }
+}
+
+void TransferListModel::configure()
+{
+    const Preferences *pref = Preferences::instance();
+
+    HideZeroValuesMode hideZeroValuesMode = HideZeroValuesMode::Never;
+    if (pref->getHideZeroValues()) {
+        if (pref->getHideZeroComboValues() == 1)
+            hideZeroValuesMode = HideZeroValuesMode::Paused;
+        else
+            hideZeroValuesMode = HideZeroValuesMode::Always;
+    }
+
+    if (m_hideZeroValuesMode != hideZeroValuesMode) {
+        m_hideZeroValuesMode = hideZeroValuesMode;
+        emit dataChanged(index(0, 0), index((rowCount() - 1), (columnCount() - 1)));
+    }
+}
+
+void TransferListModel::setStateForeground(const BitTorrent::TorrentState state, const QColor &color)
+{
+    m_stateForegroundColors[state] = color;
+}
+
+QColor TransferListModel::stateForeground(const BitTorrent::TorrentState state) const
+{
+    return m_stateForegroundColors[state];
 }
 
 // Static functions

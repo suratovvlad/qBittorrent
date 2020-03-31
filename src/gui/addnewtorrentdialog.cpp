@@ -30,6 +30,7 @@
 
 #include <QDebug>
 #include <QDir>
+#include <QFileDialog>
 #include <QMenu>
 #include <QPushButton>
 #include <QShortcut>
@@ -41,6 +42,7 @@
 #include "base/bittorrent/magneturi.h"
 #include "base/bittorrent/session.h"
 #include "base/bittorrent/torrenthandle.h"
+#include "base/exceptions.h"
 #include "base/global.h"
 #include "base/net/downloadmanager.h"
 #include "base/settingsstorage.h"
@@ -95,6 +97,8 @@ AddNewTorrentDialog::AddNewTorrentDialog(const BitTorrent::AddTorrentParams &inP
 
     m_ui->lblMetaLoading->setVisible(false);
     m_ui->progMetaLoading->setVisible(false);
+    m_ui->buttonSave->setVisible(false);
+    connect(m_ui->buttonSave, &QPushButton::clicked, this, &AddNewTorrentDialog::saveTorrentFile);
 
     m_ui->savePath->setMode(FileSystemPathEdit::Mode::DirectorySave);
     m_ui->savePath->setDialogCaption(tr("Choose save path"));
@@ -264,7 +268,7 @@ bool AddNewTorrentDialog::loadTorrentFile(const QString &torrentPath)
         return false;
     }
 
-    m_torrentGuard.reset(new TorrentFileGuard(decodedPath));
+    m_torrentGuard = std::make_unique<TorrentFileGuard>(decodedPath);
 
     return loadTorrentImpl();
 }
@@ -306,7 +310,7 @@ bool AddNewTorrentDialog::loadMagnet(const BitTorrent::MagnetUri &magnetUri)
         return false;
     }
 
-    m_torrentGuard.reset(new TorrentFileGuard(QString()));
+    m_torrentGuard = std::make_unique<TorrentFileGuard>();
     m_hash = magnetUri.hash();
     // Prevent showing the dialog if download is already present
     if (BitTorrent::Session::instance()->isKnownTorrent(m_hash)) {
@@ -421,6 +425,7 @@ void AddNewTorrentDialog::categoryChanged(int index)
     if (m_ui->comboTTM->currentIndex() == 1) {
         QString savePath = BitTorrent::Session::instance()->categorySavePath(m_ui->categoryComboBox->currentText());
         m_ui->savePath->setSelectedPath(Utils::Fs::toNativePath(savePath));
+        updateDiskSpaceLabel();
     }
 }
 
@@ -434,6 +439,30 @@ void AddNewTorrentDialog::setSavePath(const QString &newPath)
     }
     m_ui->savePath->setCurrentIndex(existingIndex);
     onSavePathChanged(newPath);
+}
+
+void AddNewTorrentDialog::saveTorrentFile()
+{
+    Q_ASSERT(m_hasMetadata);
+
+    const QString torrentFileExtension {C_TORRENT_FILE_EXTENSION};
+    const QString filter {QString{"Torrent file (*%1)"}.arg(torrentFileExtension)};
+
+    QString path = QFileDialog::getSaveFileName(
+                this, tr("Save as torrent file")
+                , QDir::home().absoluteFilePath(m_torrentInfo.name() + torrentFileExtension)
+                , filter);
+    if (path.isEmpty()) return;
+
+    if (!path.endsWith(torrentFileExtension, Qt::CaseInsensitive))
+        path += torrentFileExtension;
+
+    try {
+        m_torrentInfo.saveToFile(path);
+    }
+    catch (const RuntimeError &err) {
+        QMessageBox::critical(this, tr("I/O Error"), err.message());
+    }
 }
 
 void AddNewTorrentDialog::populateSavePathComboBox()
@@ -589,6 +618,7 @@ void AddNewTorrentDialog::setMetadataProgressIndicator(bool visibleIndicator, co
     m_ui->lblMetaLoading->setVisible(true);
     m_ui->lblMetaLoading->setText(labelText);
     m_ui->progMetaLoading->setVisible(visibleIndicator);
+    m_ui->buttonSave->setVisible(!visibleIndicator);
 }
 
 void AddNewTorrentDialog::setupTreeview()
@@ -648,7 +678,7 @@ void AddNewTorrentDialog::handleDownloadFinished(const Net::DownloadResult &resu
             return;
         }
 
-        m_torrentGuard.reset(new TorrentFileGuard);
+        m_torrentGuard = std::make_unique<TorrentFileGuard>();
 
         if (loadTorrentImpl())
             open();
@@ -682,6 +712,7 @@ void AddNewTorrentDialog::TMMChanged(int index)
         m_ui->savePath->clear();
         QString savePath = BitTorrent::Session::instance()->categorySavePath(m_ui->categoryComboBox->currentText());
         m_ui->savePath->addItem(savePath);
+        updateDiskSpaceLabel();
     }
 }
 

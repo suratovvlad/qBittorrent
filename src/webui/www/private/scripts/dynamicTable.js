@@ -1206,7 +1206,7 @@ window.qBittorrent.DynamicTable = (function() {
 
             switch (filterName) {
                 case 'downloading':
-                    if (state != 'downloading' && !~state.indexOf('DL'))
+                    if ((state != 'downloading') && (state.indexOf('DL') === -1))
                         return false;
                     break;
                 case 'seeding':
@@ -1214,15 +1214,27 @@ window.qBittorrent.DynamicTable = (function() {
                         return false;
                     break;
                 case 'completed':
-                    if (state != 'uploading' && !~state.indexOf('UP'))
+                    if ((state != 'uploading') && (state.indexOf('UP') === -1))
                         return false;
                     break;
                 case 'paused':
-                    if (!~state.indexOf('paused'))
+                    if (state.indexOf('paused') === -1)
                         return false;
                     break;
                 case 'resumed':
-                    if (~state.indexOf('paused'))
+                    if (state.indexOf('paused') > -1)
+                        return false;
+                    break;
+                case 'stalled':
+                    if ((state != 'stalledUP') && (state != 'stalledDL'))
+                        return false;
+                    break;
+                case 'stalled_uploading':
+                    if (state != 'stalledUP')
+                        return false;
+                    break;
+                case 'stalled_downloading':
+                    if (state != 'stalledDL')
                         return false;
                     break;
                 case 'inactive':
@@ -1338,7 +1350,7 @@ window.qBittorrent.DynamicTable = (function() {
                 this._this.selectRow(this.rowId);
                 const row = this._this.rows.get(this.rowId);
                 const state = row['full_data'].state;
-                if (~state.indexOf('paused'))
+                if (state.indexOf('paused') > -1)
                     startFN();
                 else
                     pauseFN();
@@ -1360,7 +1372,7 @@ window.qBittorrent.DynamicTable = (function() {
         Extends: DynamicTable,
 
         initColumns: function() {
-            this.newColumn('country', '', 'QBT_TR(Country)QBT_TR[CONTEXT=PeerListWidget]', 22, true);
+            this.newColumn('country', '', 'QBT_TR(Country/Region)QBT_TR[CONTEXT=PeerListWidget]', 22, true);
             this.newColumn('ip', '', 'QBT_TR(IP)QBT_TR[CONTEXT=PeerListWidget]', 80, true);
             this.newColumn('port', '', 'QBT_TR(Port)QBT_TR[CONTEXT=PeerListWidget]', 35, true);
             this.newColumn('connection', '', 'QBT_TR(Connection)QBT_TR[CONTEXT=PeerListWidget]', 50, true);
@@ -1716,7 +1728,7 @@ window.qBittorrent.DynamicTable = (function() {
                 const size = window.qBittorrent.Misc.friendlyUnit(this.getRowValue(row), false);
                 td.set('text', size);
                 td.set('title', size);
-            }
+            };
             const displayPercentage = function(td, row) {
                 const value = window.qBittorrent.Misc.friendlyPercentage(this.getRowValue(row));
                 td.set('text', value);

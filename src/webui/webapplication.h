@@ -43,7 +43,7 @@
 #include "base/utils/net.h"
 #include "base/utils/version.h"
 
-constexpr Utils::Version<int, 3, 2> API_VERSION {2, 4, 0};
+constexpr Utils::Version<int, 3, 2> API_VERSION {2, 4, 1};
 
 class APIController;
 class WebApplication;
@@ -126,7 +126,7 @@ private:
     QHash<QString, QString> m_params;
     const QString m_cacheID;
 
-    const QRegularExpression m_apiPathPattern {(QLatin1String("^/api/v2/(?<scope>[A-Za-z_][A-Za-z_0-9]*)/(?<action>[A-Za-z_][A-Za-z_0-9]*)$"))};
+    const QRegularExpression m_apiPathPattern {QLatin1String("^/api/v2/(?<scope>[A-Za-z_][A-Za-z_0-9]*)/(?<action>[A-Za-z_][A-Za-z_0-9]*)$")};
 
     QHash<QString, APIController *> m_apiControllers;
     QSet<QString> m_publicAPIs;
@@ -153,6 +153,7 @@ private:
     QStringList m_domainList;
     bool m_isClickjackingProtectionEnabled;
     bool m_isCSRFProtectionEnabled;
+    bool m_isSecureCookieEnabled;
     bool m_isHostHeaderValidationEnabled;
     bool m_isHttpsEnabled;
     QString m_contentSecurityPolicy;
