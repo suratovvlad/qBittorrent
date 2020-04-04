@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2015, 2018  Vladimir Golovnev <glassez@yandex.ru>
+ * Copyright (C) 2020  Mike Tzou (Chocobo1)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,33 +26,38 @@
  * exception statement from your version.
  */
 
-#include "resumedatasavingmanager.h"
+#pragma once
 
-#include <QByteArray>
-#include <QSaveFile>
+#include <iterator>
+#include <memory>
 
-#include "base/logger.h"
-#include "base/utils/fs.h"
+class QByteArray;
+class QFileDevice;
 
-ResumeDataSavingManager::ResumeDataSavingManager(const QString &resumeFolderPath)
-    : m_resumeDataDir(resumeFolderPath)
+namespace Utils
 {
-}
+    namespace IO
+    {
+        // A wrapper class that satisfy LegacyOutputIterator requirement
+        class FileDeviceOutputIterator
+            : public std::iterator<std::output_iterator_tag, void, void, void, void>
+        {
+        public:
+            explicit FileDeviceOutputIterator(QFileDevice &device, const int bufferSize = (4 * 1024));
+            FileDeviceOutputIterator(const FileDeviceOutputIterator &other) = default;
+            ~FileDeviceOutputIterator();
 
-void ResumeDataSavingManager::save(const QString &filename, const QByteArray &data) const
-{
-    const QString filepath = m_resumeDataDir.absoluteFilePath(filename);
+            // mimic std::ostream_iterator behavior
+            FileDeviceOutputIterator &operator=(char c);
+            // TODO: make these `constexpr` in C++17
+            FileDeviceOutputIterator &operator*();
+            FileDeviceOutputIterator &operator++();
+            FileDeviceOutputIterator &operator++(int);
 
-    QSaveFile file {filepath};
-    if (!file.open(QIODevice::WriteOnly) || (file.write(data) != data.size()) || !file.commit()) {
-        LogMsg(tr("Couldn't save data to '%1'. Error: %2")
-            .arg(filepath, file.errorString()), Log::CRITICAL);
+        private:
+            QFileDevice *m_device;
+            std::shared_ptr<QByteArray> m_buffer;
+            int m_bufferSize;
+        };
     }
-}
-
-void ResumeDataSavingManager::remove(const QString &filename) const
-{
-    const QString filepath = m_resumeDataDir.absoluteFilePath(filename);
-
-    Utils::Fs::forceRemove(filepath);
 }

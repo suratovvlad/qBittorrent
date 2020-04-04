@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2015, 2018  Vladimir Golovnev <glassez@yandex.ru>
+ * Copyright (C) 2020  Mike Tzou (Chocobo1)
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,33 +26,48 @@
  * exception statement from your version.
  */
 
-#include "resumedatasavingmanager.h"
+#include "io.h"
 
 #include <QByteArray>
-#include <QSaveFile>
+#include <QFileDevice>
 
-#include "base/logger.h"
-#include "base/utils/fs.h"
-
-ResumeDataSavingManager::ResumeDataSavingManager(const QString &resumeFolderPath)
-    : m_resumeDataDir(resumeFolderPath)
+Utils::IO::FileDeviceOutputIterator::FileDeviceOutputIterator(QFileDevice &device, const int bufferSize)
+    : m_device {&device}
+    , m_buffer {std::make_shared<QByteArray>()}
+    , m_bufferSize {bufferSize}
 {
+    m_buffer->reserve(bufferSize);
 }
 
-void ResumeDataSavingManager::save(const QString &filename, const QByteArray &data) const
+Utils::IO::FileDeviceOutputIterator::~FileDeviceOutputIterator()
 {
-    const QString filepath = m_resumeDataDir.absoluteFilePath(filename);
+    if (m_device->error() == QFileDevice::NoError)
+        m_device->write(*m_buffer);
+    m_buffer->clear();
+}
 
-    QSaveFile file {filepath};
-    if (!file.open(QIODevice::WriteOnly) || (file.write(data) != data.size()) || !file.commit()) {
-        LogMsg(tr("Couldn't save data to '%1'. Error: %2")
-            .arg(filepath, file.errorString()), Log::CRITICAL);
+Utils::IO::FileDeviceOutputIterator &Utils::IO::FileDeviceOutputIterator::operator=(const char c)
+{
+    m_buffer->append(c);
+    if (m_buffer->size() >= m_bufferSize) {
+        if (m_device->error() == QFileDevice::NoError)
+            m_device->write(*m_buffer);
+        m_buffer->clear();
     }
+    return *this;
 }
 
-void ResumeDataSavingManager::remove(const QString &filename) const
+Utils::IO::FileDeviceOutputIterator &Utils::IO::FileDeviceOutputIterator::operator*()
 {
-    const QString filepath = m_resumeDataDir.absoluteFilePath(filename);
+    return *this;
+}
 
-    Utils::Fs::forceRemove(filepath);
+Utils::IO::FileDeviceOutputIterator &Utils::IO::FileDeviceOutputIterator::operator++()
+{
+    return *this;
+}
+
+Utils::IO::FileDeviceOutputIterator &Utils::IO::FileDeviceOutputIterator::operator++(int)
+{
+    return *this;
 }
