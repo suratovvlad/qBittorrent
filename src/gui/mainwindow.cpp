@@ -28,6 +28,8 @@
 
 #include "mainwindow.h"
 
+#include <chrono>
+
 #include <QCloseEvent>
 #include <QDebug>
 #include <QDesktopServices>
@@ -49,7 +51,7 @@
 #endif
 #if (defined(Q_OS_UNIX) && !defined(Q_OS_MACOS)) && defined(QT_DBUS_LIB)
 #include <QDBusConnection>
-#include "notifications.h"
+#include "qtnotify/notifications.h"
 #endif
 
 #include "base/bittorrent/session.h"
@@ -75,16 +77,17 @@
 #include "hidabletabwidget.h"
 #include "lineedit.h"
 #include "optionsdialog.h"
-#include "peerlistwidget.h"
-#include "powermanagement.h"
-#include "propertieswidget.h"
+#include "powermanagement/powermanagement.h"
+#include "properties/peerlistwidget.h"
+#include "properties/propertieswidget.h"
+#include "properties/trackerlistwidget.h"
 #include "rss/rsswidget.h"
 #include "search/searchwidget.h"
 #include "speedlimitdialog.h"
 #include "statsdialog.h"
 #include "statusbar.h"
 #include "torrentcreatordialog.h"
-#include "trackerlistwidget.h"
+
 #include "transferlistfilterswidget.h"
 #include "transferlistmodel.h"
 #include "transferlistwidget.h"
@@ -98,9 +101,6 @@
 #if defined(Q_OS_WIN) || defined(Q_OS_MACOS)
 #include "programupdater.h"
 #endif
-
-#define TIME_TRAY_BALLOON 5000
-#define PREVENT_SUSPEND_INTERVAL 60000
 
 namespace
 {
@@ -118,6 +118,11 @@ namespace
 
     // Misc
     const QString KEY_DOWNLOAD_TRACKER_FAVICON = QStringLiteral(SETTINGS_KEY("DownloadTrackerFavicon"));
+
+    const std::chrono::seconds PREVENT_SUSPEND_INTERVAL {60};
+#if !defined(Q_OS_MACOS)
+    const int TIME_TRAY_BALLOON = 5000;
+#endif
 
     // just a shortcut
     inline SettingsStorage *settings()
@@ -145,13 +150,7 @@ MainWindow::MainWindow(QWidget *parent)
     m_displaySpeedInTitle = pref->speedInTitleBar();
     // Setting icons
 #ifndef Q_OS_MACOS
-#ifdef Q_OS_UNIX
-    const QIcon appLogo = Preferences::instance()->useSystemIconTheme()
-        ? QIcon::fromTheme("qbittorrent", QIcon(":/icons/skin/qbittorrent-tray.svg"))
-        : QIcon(":/icons/skin/qbittorrent-tray.svg");
-#else
-    const QIcon appLogo(":/icons/skin/qbittorrent-tray.svg");
-#endif // Q_OS_UNIX
+    const QIcon appLogo(UIThemeManager::instance()->getIcon(QLatin1String("qbittorrent"), QLatin1String("qbittorrent-tray")));
     setWindowIcon(appLogo);
 #endif // Q_OS_MACOS
 
@@ -196,12 +195,14 @@ MainWindow::MainWindow(QWidget *parent)
 
     // Creating Bittorrent session
     connect(BitTorrent::Session::instance(), &BitTorrent::Session::fullDiskError, this, &MainWindow::fullDiskError);
-    connect(BitTorrent::Session::instance(), &BitTorrent::Session::addTorrentFailed, this, &MainWindow::addTorrentFailed);
-    connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentNew,this, &MainWindow::torrentNew);
+    connect(BitTorrent::Session::instance(), &BitTorrent::Session::loadTorrentFailed, this, &MainWindow::addTorrentFailed);
+    connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentAdded,this, &MainWindow::torrentNew);
     connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentFinished, this, &MainWindow::finishedTorrent);
     connect(BitTorrent::Session::instance(), &BitTorrent::Session::downloadFromUrlFailed, this, &MainWindow::handleDownloadFromUrlFailure);
     connect(BitTorrent::Session::instance(), &BitTorrent::Session::speedLimitModeChanged, this, &MainWindow::updateAltSpeedsBtn);
     connect(BitTorrent::Session::instance(), &BitTorrent::Session::recursiveTorrentDownloadPossible, this, &MainWindow::askRecursiveTorrentDownloadConfirmation);
+    connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentStorageMoveFinished, this, &MainWindow::moveTorrentFinished);
+    connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentStorageMoveFailed, this, &MainWindow::moveTorrentFailed);
 
     qDebug("create tabWidget");
     m_tabs = new HidableTabWidget(this);
@@ -487,7 +488,7 @@ int MainWindow::executionLogMsgTypes() const
 
 void MainWindow::setExecutionLogMsgTypes(const int value)
 {
-    m_executionLog->showMsgTypes(static_cast<Log::MsgTypes>(value));
+    m_executionLog->setMessageTypes(static_cast<Log::MsgTypes>(value));
     settings()->storeValue(KEY_EXECUTIONLOG_TYPES, value);
 }
 
@@ -776,8 +777,9 @@ void MainWindow::cleanup()
     if (m_systrayCreator)
         m_systrayCreator->stop();
 #endif
-    if (m_preventTimer)
-        m_preventTimer->stop();
+
+    m_preventTimer->stop();
+
 #if (defined(Q_OS_WIN) || defined(Q_OS_MACOS))
     m_programUpdateTimer->stop();
 #endif
@@ -836,6 +838,16 @@ void MainWindow::finishedTorrent(BitTorrent::TorrentHandle *const torrent) const
     showNotificationBaloon(tr("Download completion"), tr("'%1' has finished downloading.", "e.g: xxx.avi has finished downloading.").arg(torrent->name()));
 }
 
+void MainWindow::moveTorrentFinished(BitTorrent::TorrentHandle *const torrent, const QString &newPath) const
+{
+    showNotificationBaloon(tr("Torrent moving finished"), tr("'%1' has finished moving files to '%2'.").arg(torrent->name(), newPath));
+}
+
+void MainWindow::moveTorrentFailed(BitTorrent::TorrentHandle *const torrent, const QString &targetPath, const QString &error) const
+{
+    showNotificationBaloon(tr("Torrent moving failed"), tr("'%1' has failed moving files to '%2'. Reason: %3").arg(torrent->name(), targetPath, error));
+}
+
 // Notification when disk is full
 void MainWindow::fullDiskError(BitTorrent::TorrentHandle *const torrent, const QString &msg) const
 {
@@ -871,6 +883,7 @@ void MainWindow::createKeyboardShortcuts()
 
     m_ui->actionDocumentation->setShortcut(QKeySequence::HelpContents);
     m_ui->actionOptions->setShortcut(Qt::ALT + Qt::Key_O);
+    m_ui->actionStatistics->setShortcut(Qt::CTRL + Qt::Key_I);
     m_ui->actionStart->setShortcut(Qt::CTRL + Qt::Key_S);
     m_ui->actionStartAll->setShortcut(Qt::CTRL + Qt::SHIFT + Qt::Key_S);
     m_ui->actionPause->setShortcut(Qt::CTRL + Qt::Key_P);
@@ -1298,7 +1311,7 @@ void MainWindow::dropEvent(QDropEvent *event)
     for (const QString &file : asConst(otherFiles)) {
         createTorrentTriggered(file);
 
-        // currently only hande the first entry
+        // currently only handle the first entry
         // this is a stub that can be expanded later to create many torrents at once
         break;
     }
@@ -1405,7 +1418,7 @@ void MainWindow::showStatusBar(bool show)
     }
 }
 
-void MainWindow::loadPreferences(bool configureSession)
+void MainWindow::loadPreferences(const bool configureSession)
 {
     Logger::instance()->addMessage(tr("Options were saved successfully."));
     const Preferences *const pref = Preferences::instance();
@@ -1455,8 +1468,11 @@ void MainWindow::loadPreferences(bool configureSession)
 
     showStatusBar(pref->isStatusbarDisplayed());
 
-    if ((pref->preventFromSuspendWhenDownloading() || pref->preventFromSuspendWhenSeeding()) && !m_preventTimer->isActive()) {
-        m_preventTimer->start(PREVENT_SUSPEND_INTERVAL);
+    if (pref->preventFromSuspendWhenDownloading() || pref->preventFromSuspendWhenSeeding()) {
+        if (!m_preventTimer->isActive()) {
+            updatePowerManagementState();
+            m_preventTimer->start(PREVENT_SUSPEND_INTERVAL);
+        }
     }
     else {
         m_preventTimer->stop();
@@ -1528,25 +1544,9 @@ void MainWindow::reloadSessionStats()
     }
 #else
     if (m_systrayIcon) {
-#ifdef Q_OS_UNIX
-        const QString toolTip = QString::fromLatin1(
-                "<div style='background-color: #678db2; color: #fff;height: 18px; font-weight: bold; margin-bottom: 5px;'>"
-                "qBittorrent"
-                "</div>"
-                "<div style='vertical-align: baseline; height: 18px;'>"
-                "<img src=':/icons/skin/download.svg' height='14'/>&nbsp;%1"
-                "</div>"
-                "<div style='vertical-align: baseline; height: 18px;'>"
-                "<img src=':/icons/skin/seeding.svg' height='14'/>&nbsp;%2"
-                "</div>")
-            .arg(tr("DL speed: %1", "e.g: Download speed: 10 KiB/s").arg(Utils::Misc::friendlyUnit(status.payloadDownloadRate, true))
-                 , tr("UP speed: %1", "e.g: Upload speed: 10 KiB/s").arg(Utils::Misc::friendlyUnit(status.payloadUploadRate, true)));
-#else
-        // OSes such as Windows do not support html here
         const QString toolTip = QString::fromLatin1("%1\n%2").arg(
             tr("DL speed: %1", "e.g: Download speed: 10 KiB/s").arg(Utils::Misc::friendlyUnit(status.payloadDownloadRate, true))
             , tr("UP speed: %1", "e.g: Upload speed: 10 KiB/s").arg(Utils::Misc::friendlyUnit(status.payloadUploadRate, true)));
-#endif // Q_OS_UNIX
         m_systrayIcon->setToolTip(toolTip); // tray icon
     }
 #endif  // Q_OS_MACOS
@@ -1777,7 +1777,7 @@ void MainWindow::on_actionSearchWidget_triggered()
 
 #ifdef Q_OS_WIN
             const QMessageBox::StandardButton buttonPressed = QMessageBox::question(this, tr("Old Python Runtime")
-                , tr("Your Python version (%1) is outdated. Minimum requirement: 3.3.0.\nDo you want to install a newer version now?")
+                , tr("Your Python version (%1) is outdated. Minimum requirement: 3.5.0.\nDo you want to install a newer version now?")
                     .arg(pyInfo.version)
                 , (QMessageBox::Yes | QMessageBox::No), QMessageBox::Yes);
             if (buttonPressed == QMessageBox::Yes)
@@ -1870,7 +1870,7 @@ void MainWindow::on_actionExecutionLogs_triggered(bool checked)
 {
     if (checked) {
         Q_ASSERT(!m_executionLog);
-        m_executionLog = new ExecutionLogWidget(m_tabs, static_cast<Log::MsgType>(executionLogMsgTypes()));
+        m_executionLog = new ExecutionLogWidget(static_cast<Log::MsgType>(executionLogMsgTypes()), m_tabs);
 #ifdef Q_OS_MACOS
         m_tabs->addTab(m_executionLog, tr("Execution Log"));
 #else
@@ -1979,18 +1979,18 @@ QIcon MainWindow::getSystrayIcon() const
 #else
     switch (style) {
     case TrayIcon::NORMAL:
-        return QIcon(QLatin1String(":/icons/skin/qbittorrent-tray.svg"));
+        return UIThemeManager::instance()->getIcon(QLatin1String("qbittorrent-tray"));
     case TrayIcon::MONO_DARK:
-        return QIcon(QLatin1String(":/icons/skin/qbittorrent-tray-dark.svg"));
+        return UIThemeManager::instance()->getIcon(QLatin1String("qbittorrent-tray-dark"));
     case TrayIcon::MONO_LIGHT:
-        return QIcon(QLatin1String(":/icons/skin/qbittorrent-tray-light.svg"));
+        return UIThemeManager::instance()->getIcon(QLatin1String("qbittorrent-tray-light"));
     default:
         break;
     }
 #endif
 
     // As a failsafe in case the enum is invalid
-    return QIcon(QLatin1String(":/icons/skin/qbittorrent-tray.svg"));
+    return UIThemeManager::instance()->getIcon(QLatin1String("qbittorrent-tray"));
 }
 #endif // Q_OS_MACOS
 
@@ -2015,9 +2015,9 @@ void MainWindow::installPython()
     setCursor(QCursor(Qt::WaitCursor));
     // Download python
 #ifdef QBT_APP_64BIT
-    const QString installerURL = "https://www.python.org/ftp/python/3.8.1/python-3.8.1-amd64.exe";
+    const QString installerURL = "https://www.python.org/ftp/python/3.8.5/python-3.8.5-amd64.exe";
 #else
-    const QString installerURL = "https://www.python.org/ftp/python/3.8.1/python-3.8.1.exe";
+    const QString installerURL = "https://www.python.org/ftp/python/3.8.5/python-3.8.5.exe";
 #endif
     Net::DownloadManager::instance()->download(
                 Net::DownloadRequest(installerURL).saveToFile(true)

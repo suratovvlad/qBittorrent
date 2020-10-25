@@ -1,4 +1,4 @@
-AC_INIT([qbittorrent], [v4.3.0alpha], [bugs.qbittorrent.org], [], [https://www.qbittorrent.org/])
+AC_INIT([qbittorrent], [v4.4.0alpha], [bugs.qbittorrent.org], [], [https://www.qbittorrent.org/])
 AC_CONFIG_AUX_DIR([build-aux])
 AC_CONFIG_MACRO_DIR([m4])
 AC_PROG_CC
@@ -178,7 +178,7 @@ AC_MSG_NOTICE([Boost.System LIB: "$BOOST_SYSTEM_LIB"])
 LIBS="$BOOST_SYSTEM_LIB $LIBS"
 
 PKG_CHECK_MODULES(libtorrent,
-                  [libtorrent-rasterbar >= 1.1.10],
+                  [libtorrent-rasterbar >= 1.2],
                   [CXXFLAGS="$libtorrent_CFLAGS $CXXFLAGS"
                   LIBS="$libtorrent_LIBS $LIBS"])
 

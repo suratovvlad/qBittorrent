@@ -55,7 +55,7 @@
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
-	<string>4.3.0</string>
+	<string>4.4.0</string>
 	<key>CFBundleExecutable</key>
 	<string>@EXECUTABLE@</string>
 	<key>CFBundleIdentifier</key>
@@ -88,13 +88,17 @@
 			<key>UTTypeTagSpecification</key>
 			<dict>
 				<key>com.apple.ostype</key>
-				<string>TORR</string>
+				<array>
+					<string>TORR</string>
+				</array>
 				<key>public.filename-extension</key>
 				<array>
 					<string>torrent</string>
 				</array>
 				<key>public.mime-type</key>
-				<string>application/x-bittorrent</string>
+				<array>
+					<string>application/x-bittorrent</string>
+				</array>
 			</dict>
 		</dict>
 	</array>

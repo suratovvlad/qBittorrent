@@ -33,6 +33,7 @@
 #include <QDir>
 #include <QFile>
 #include <QHostAddress>
+#include <QLocale>
 
 #include "base/logger.h"
 #include "base/preferences.h"
@@ -40,7 +41,7 @@
 #include "base/utils/fs.h"
 #include "base/utils/gzip.h"
 #include "downloadmanager.h"
-#include "private/geoipdatabase.h"
+#include "geoipdatabase.h"
 
 static const QString DATABASE_URL = QStringLiteral("https://download.db-ip.com/free/dbip-country-lite-%1.mmdb.gz");
 static const char GEODB_FOLDER[] = "GeoDB";
@@ -124,8 +125,8 @@ void GeoIPManager::manageDatabaseUpdate()
 
 void GeoIPManager::downloadDatabaseFile()
 {
-    const QDate curDate = QDateTime::currentDateTimeUtc().date();
-    const QString curUrl = DATABASE_URL.arg(curDate.toString("yyyy-MM"));
+    const QDateTime curDatetime = QDateTime::currentDateTimeUtc();
+    const QString curUrl = DATABASE_URL.arg(QLocale::c().toString(curDatetime, "yyyy-MM"));
     DownloadManager::instance()->download({curUrl}, this, &GeoIPManager::downloadFinished);
 }
 

@@ -39,7 +39,10 @@ window.qBittorrent.ContextMenu = (function() {
             TorrentsTableContextMenu: TorrentsTableContextMenu,
             CategoriesFilterContextMenu: CategoriesFilterContextMenu,
             TagsFilterContextMenu: TagsFilterContextMenu,
-            SearchPluginsTableContextMenu: SearchPluginsTableContextMenu
+            SearchPluginsTableContextMenu: SearchPluginsTableContextMenu,
+            RssFeedContextMenu: RssFeedContextMenu,
+            RssArticleContextMenu: RssArticleContextMenu,
+            RssDownloaderRuleContextMenu: RssDownloaderRuleContextMenu
         };
     };
 
@@ -430,10 +433,10 @@ window.qBittorrent.ContextMenu = (function() {
             const categoryList = $('contextCategoryList');
             categoryList.empty();
             categoryList.appendChild(new Element('li', {
-                html: '<a href="javascript:torrentNewCategoryFN();"><img src="images/qbt-theme/list-add.svg" alt="QBT_TR(New...)QBT_TR[CONTEXT=TransferListWidget]"/> QBT_TR(New...)QBT_TR[CONTEXT=TransferListWidget]</a>'
+                html: '<a href="javascript:torrentNewCategoryFN();"><img src="icons/list-add.svg" alt="QBT_TR(New...)QBT_TR[CONTEXT=TransferListWidget]"/> QBT_TR(New...)QBT_TR[CONTEXT=TransferListWidget]</a>'
             }));
             categoryList.appendChild(new Element('li', {
-                html: '<a href="javascript:torrentSetCategoryFN(0);"><img src="images/qbt-theme/edit-clear.svg" alt="QBT_TR(Reset)QBT_TR[CONTEXT=TransferListWidget]"/> QBT_TR(Reset)QBT_TR[CONTEXT=TransferListWidget]</a>'
+                html: '<a href="javascript:torrentSetCategoryFN(0);"><img src="icons/edit-clear.svg" alt="QBT_TR(Reset)QBT_TR[CONTEXT=TransferListWidget]"/> QBT_TR(Reset)QBT_TR[CONTEXT=TransferListWidget]</a>'
             }));
 
             const sortedCategories = [];
@@ -446,7 +449,7 @@ window.qBittorrent.ContextMenu = (function() {
             Object.each(sortedCategories, function(categoryName) {
                 const categoryHash = genHash(categoryName);
                 const el = new Element('li', {
-                    html: '<a href="javascript:torrentSetCategoryFN(\'' + categoryHash + '\');"><img src="images/qbt-theme/inode-directory.svg"/> ' + window.qBittorrent.Misc.escapeHtml(categoryName) + '</a>'
+                    html: '<a href="javascript:torrentSetCategoryFN(\'' + categoryHash + '\');"><img src="icons/inode-directory.svg"/> ' + window.qBittorrent.Misc.escapeHtml(categoryName) + '</a>'
                 });
                 if (first) {
                     el.addClass('separator');
@@ -463,13 +466,13 @@ window.qBittorrent.ContextMenu = (function() {
 
             contextTagList.appendChild(new Element('li', {
                 html: '<a href="javascript:torrentAddTagsFN();">'
-                    + '<img src="images/qbt-theme/list-add.svg" alt="QBT_TR(Add...)QBT_TR[CONTEXT=TransferListWidget]"/>'
+                    + '<img src="icons/list-add.svg" alt="QBT_TR(Add...)QBT_TR[CONTEXT=TransferListWidget]"/>'
                     + ' QBT_TR(Add...)QBT_TR[CONTEXT=TransferListWidget]'
                     + '</a>'
             }));
             contextTagList.appendChild(new Element('li', {
                 html: '<a href="javascript:torrentRemoveAllTagsFN();">'
-                    + '<img src="images/qbt-theme/edit-clear.svg" alt="QBT_TR(Remove All)QBT_TR[CONTEXT=TransferListWidget]"/>'
+                    + '<img src="icons/edit-clear.svg" alt="QBT_TR(Remove All)QBT_TR[CONTEXT=TransferListWidget]"/>'
                     + ' QBT_TR(Remove All)QBT_TR[CONTEXT=TransferListWidget]'
                     + '</a>'
             }));
@@ -535,6 +538,130 @@ window.qBittorrent.ContextMenu = (function() {
             this.setItemChecked('Enabled', this.options.element.getChildren("td")[enabledColumnIndex()].get("html") === "Yes");
 
             this.showItem('Uninstall');
+        }
+    });
+
+    const RssFeedContextMenu = new Class({
+        Extends: ContextMenu,
+        updateMenuItems: function() {
+            let selectedRows = window.qBittorrent.Rss.rssFeedTable.selectedRowsIds();
+            this.menu.getElement('a[href$=newSubscription]').parentNode.addClass('separator');
+            switch (selectedRows.length) {
+                case 0:
+                    // remove separator on top of newSubscription entry to avoid double line
+                    this.menu.getElement('a[href$=newSubscription]').parentNode.removeClass('separator');
+                    // menu when nothing selected
+                    this.hideItem('update');
+                    this.hideItem('markRead');
+                    this.hideItem('rename');
+                    this.hideItem('delete');
+                    this.showItem('newSubscription');
+                    this.showItem('newFolder');
+                    this.showItem('updateAll');
+                    this.hideItem('copyFeedURL');
+                    break;
+                case 1:
+                    if (selectedRows[0] === 0) {
+                        // menu when "unread" feed selected
+                        this.showItem('update');
+                        this.showItem('markRead');
+                        this.hideItem('rename');
+                        this.hideItem('delete');
+                        this.showItem('newSubscription');
+                        this.hideItem('newFolder');
+                        this.hideItem('updateAll');
+                        this.hideItem('copyFeedURL');
+                    }
+                    else if (window.qBittorrent.Rss.rssFeedTable.rows[selectedRows[0]].full_data.dataUid === '') {
+                        // menu when single folder selected
+                        this.showItem('update');
+                        this.showItem('markRead');
+                        this.showItem('rename');
+                        this.showItem('delete');
+                        this.showItem('newSubscription');
+                        this.showItem('newFolder');
+                        this.hideItem('updateAll');
+                        this.hideItem('copyFeedURL');
+                    }
+                    else {
+                        // menu when single feed selected
+                        this.showItem('update');
+                        this.showItem('markRead');
+                        this.showItem('rename');
+                        this.showItem('delete');
+                        this.showItem('newSubscription');
+                        this.hideItem('newFolder');
+                        this.hideItem('updateAll');
+                        this.showItem('copyFeedURL');
+                    }
+                    break;
+                default:
+                    // menu when multiple items selected
+                    this.showItem('update');
+                    this.showItem('markRead');
+                    this.hideItem('rename');
+                    this.showItem('delete');
+                    this.hideItem('newSubscription');
+                    this.hideItem('newFolder');
+                    this.hideItem('updateAll');
+                    this.showItem('copyFeedURL');
+            }
+        }
+    });
+
+    const RssArticleContextMenu = new Class({
+        Extends: ContextMenu
+    });
+
+    const RssDownloaderRuleContextMenu = new Class({
+        Extends: ContextMenu,
+        adjustMenuPosition: function(e) {
+            this.updateMenuItems();
+
+            // draw the menu off-screen to know the menu dimensions
+            this.menu.setStyles({
+                left: '-999em',
+                top: '-999em'
+            });
+            // position the menu
+            let xPosMenu = e.page.x + this.options.offsets.x - $('rssdownloaderpage').offsetLeft;
+            let yPosMenu = e.page.y + this.options.offsets.y - $('rssdownloaderpage').offsetTop;
+            if ((xPosMenu + this.menu.offsetWidth) > document.documentElement.clientWidth)
+                xPosMenu -= this.menu.offsetWidth;
+            if ((yPosMenu + this.menu.offsetHeight) > document.documentElement.clientHeight)
+                yPosMenu = document.documentElement.clientHeight - this.menu.offsetHeight;
+            xPosMenu = Math.max(xPosMenu, 0);
+            yPosMenu = Math.max(yPosMenu, 0);
+
+            this.menu.setStyles({
+                left: xPosMenu,
+                top: yPosMenu,
+                position: 'absolute',
+                'z-index': '2000'
+            });
+        },
+        updateMenuItems: function() {
+            let selectedRows = window.qBittorrent.RssDownloader.rssDownloaderRulesTable.selectedRowsIds();
+            this.showItem('addRule');
+            switch (selectedRows.length) {
+                case 0:
+                    // menu when nothing selected
+                    this.hideItem('deleteRule');
+                    this.hideItem('renameRule');
+                    this.hideItem('clearDownloadedEpisodes');
+                    break;
+                case 1:
+                    // menu when single item selected
+                    this.showItem('deleteRule');
+                    this.showItem('renameRule');
+                    this.showItem('clearDownloadedEpisodes');
+                    break;
+                default:
+                    // menu when multiple items selected
+                    this.showItem('deleteRule');
+                    this.hideItem('renameRule');
+                    this.showItem('clearDownloadedEpisodes');
+            }
         }
     });
 

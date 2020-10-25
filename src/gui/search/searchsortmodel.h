@@ -32,7 +32,7 @@
 #include <QSortFilterProxyModel>
 #include <QStringList>
 
-class SearchSortModel : public QSortFilterProxyModel
+class SearchSortModel final : public QSortFilterProxyModel
 {
     using base = QSortFilterProxyModel;
 
@@ -47,6 +47,11 @@ public:
         DL_LINK,
         DESC_LINK,
         NB_SEARCH_COLUMNS
+    };
+
+    enum SearchDataRole
+    {
+        UnderlyingDataRole = Qt::UserRole
     };
 
     explicit SearchSortModel(QObject *parent = nullptr);

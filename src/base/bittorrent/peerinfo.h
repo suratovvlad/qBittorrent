@@ -89,9 +89,7 @@ namespace BitTorrent
         qreal relevance() const;
         QString flags() const;
         QString flagsDescription() const;
-#ifndef DISABLE_COUNTRIES_RESOLUTION
         QString country() const;
-#endif
         int downloadingPieceIndex() const;
 
     private:
@@ -102,6 +100,8 @@ namespace BitTorrent
         qreal m_relevance = 0;
         QString m_flags;
         QString m_flagsDescription;
+
+        mutable QString m_country;
     };
 }
 

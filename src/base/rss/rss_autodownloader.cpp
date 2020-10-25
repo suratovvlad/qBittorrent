@@ -200,7 +200,9 @@ bool AutoDownloader::renameRule(const QString &ruleName, const QString &newRuleN
     if (!hasRule(ruleName)) return false;
     if (hasRule(newRuleName)) return false;
 
-    m_rules.insert(newRuleName, m_rules.take(ruleName));
+    AutoDownloadRule rule = m_rules.take(ruleName);
+    rule.setName(newRuleName);
+    m_rules.insert(newRuleName, rule);
     m_dirty = true;
     store();
     emit ruleRenamed(newRuleName, ruleName);
@@ -399,8 +401,7 @@ void AutoDownloader::processJob(const QSharedPointer<ProcessingJob> &job)
         }
         else {
             // waiting for torrent file downloading
-            // normalize URL string via QUrl since DownloadManager do it
-            m_waitingJobs.insert(QUrl(torrentURL).toString(), job);
+            m_waitingJobs.insert(torrentURL, job);
         }
 
         return;

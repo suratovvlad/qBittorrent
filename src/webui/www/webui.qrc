@@ -3,6 +3,9 @@
         <file>private/addpeers.html</file>
         <file>private/addtrackers.html</file>
         <file>private/confirmdeletion.html</file>
+        <file>private/confirmfeeddeletion.html</file>
+        <file>private/confirmruleclear.html</file>
+        <file>private/confirmruledeletion.html</file>
         <file>private/css/Core.css</file>
         <file>private/css/dynamicTable.css</file>
         <file>private/css/Layout.css</file>
@@ -13,11 +16,34 @@
         <file>private/download.html</file>
         <file>private/downloadlimit.html</file>
         <file>private/edittracker.html</file>
+        <file>private/images/3-state-checkbox.gif</file>
+        <file>private/images/arrow-right.gif</file>
+        <file>private/images/bg-dropdown.gif</file>
+        <file>private/images/bg-handle-horizontal.gif</file>
+        <file>private/images/bg-header.gif</file>
+        <file>private/images/bg-panel-header.gif</file>
+        <file>private/images/handle-icon-horizontal.gif</file>
+        <file>private/images/handle-icon.gif</file>
+        <file>private/images/knob.gif</file>
+        <file>private/images/L.gif</file>
+        <file>private/images/logo.gif</file>
+        <file>private/images/logo2.gif</file>
+        <file>private/images/slider-area.gif</file>
+        <file>private/images/spacer.gif</file>
+        <file>private/images/spinner-placeholder.gif</file>
+        <file>private/images/spinner.gif</file>
+        <file>private/images/tabs.gif</file>
+        <file>private/images/toolbox-divider.gif</file>
         <file>private/index.html</file>
         <file>private/newcategory.html</file>
+        <file>private/newfeed.html</file>
+        <file>private/newfolder.html</file>
+        <file>private/newrule.html</file>
         <file>private/newtag.html</file>
         <file>private/rename.html</file>
+        <file>private/rename_feed.html</file>
         <file>private/rename_file.html</file>
+        <file>private/rename_rule.html</file>
         <file>private/scripts/client.js</file>
         <file>private/scripts/contextmenu.js</file>
         <file>private/scripts/download.js</file>
@@ -50,12 +76,15 @@
         <file>private/views/preferencesToolbar.html</file>
         <file>private/views/properties.html</file>
         <file>private/views/propertiesToolbar.html</file>
+        <file>private/views/rss.html</file>
+        <file>private/views/rssDownloader.html</file>
         <file>private/views/search.html</file>
         <file>private/views/searchplugins.html</file>
         <file>private/views/statistics.html</file>
         <file>private/views/transferlist.html</file>
         <file>public/css/login.css</file>
         <file>public/css/noscript.css</file>
+        <file>public/images/qbittorrent32.png</file>
         <file>public/index.html</file>
         <file>public/scripts/login.js</file>
     </qresource>

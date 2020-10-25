@@ -34,7 +34,7 @@
 #include <QSpacerItem>
 
 #include "base/global.h"
-#include "uithememanager.h"
+#include "gui/uithememanager.h"
 
 PropTabBar::PropTabBar(QWidget *parent)
     : QHBoxLayout(parent)
@@ -100,8 +100,13 @@ PropTabBar::PropTabBar(QWidget *parent)
     addWidget(speedButton);
     m_btnGroup->addButton(speedButton, SpeedTab);
     // SIGNAL/SLOT
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    connect(m_btnGroup, &QButtonGroup::idClicked
+            , this, &PropTabBar::setCurrentIndex);
+#else
     connect(m_btnGroup, qOverload<int>(&QButtonGroup::buttonClicked)
             , this, &PropTabBar::setCurrentIndex);
+#endif
     // Disable buttons focus
     for (QAbstractButton *btn : asConst(m_btnGroup->buttons()))
         btn->setFocusPolicy(Qt::NoFocus);

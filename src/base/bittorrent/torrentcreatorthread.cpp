@@ -32,9 +32,8 @@
 
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/create_torrent.hpp>
-#include <libtorrent/storage.hpp>
+#include <libtorrent/file_storage.hpp>
 #include <libtorrent/torrent_info.hpp>
-#include <libtorrent/version.hpp>
 
 #include <QDirIterator>
 #include <QFile>
@@ -46,24 +45,31 @@
 #include "base/utils/fs.h"
 #include "base/utils/io.h"
 #include "base/utils/string.h"
-#include "private/ltunderlyingtype.h"
+#include "ltunderlyingtype.h"
 
 namespace
 {
-#if (LIBTORRENT_VERSION_NUM < 10200)
-    using LTCreateFlags = int;
-    using LTPieceIndex = int;
-#else
-    using LTCreateFlags = lt::create_flags_t;
-    using LTPieceIndex = lt::piece_index_t;
-#endif
-
     // do not include files and folders whose
     // name starts with a .
     bool fileFilter(const std::string &f)
     {
         return !Utils::Fs::fileName(QString::fromStdString(f)).startsWith('.');
     }
+
+#if (LIBTORRENT_VERSION_NUM >= 20000)
+    lt::create_flags_t toNativeTorrentFormatFlag(const BitTorrent::TorrentFormat torrentFormat)
+    {
+        switch (torrentFormat) {
+        case BitTorrent::TorrentFormat::V1:
+            return lt::create_torrent::v1_only;
+        case BitTorrent::TorrentFormat::Hybrid:
+            return {};
+        case BitTorrent::TorrentFormat::V2:
+            return lt::create_torrent::v2_only;
+        }
+        return {};
+    }
+#endif
 }
 
 using namespace BitTorrent;
@@ -140,8 +146,12 @@ void TorrentCreatorThread::run()
 
         if (isInterruptionRequested()) return;
 
+#if (LIBTORRENT_VERSION_NUM >= 20000)
+        lt::create_torrent newTorrent {fs, m_params.pieceSize, toNativeTorrentFormatFlag(m_params.torrentFormat)};
+#else
         lt::create_torrent newTorrent(fs, m_params.pieceSize, m_params.paddedFileSizeLimit
-            , (m_params.isAlignmentOptimized ? lt::create_torrent::optimize_alignment : LTCreateFlags {}));
+            , (m_params.isAlignmentOptimized ? lt::create_torrent::optimize_alignment : lt::create_flags_t {}));
+#endif
 
         // Add url seeds
         for (QString seed : asConst(m_params.urlSeeds)) {
@@ -162,9 +172,9 @@ void TorrentCreatorThread::run()
 
         // calculate the hash for all pieces
         lt::set_piece_hashes(newTorrent, Utils::Fs::toNativePath(parentPath).toStdString()
-            , [this, &newTorrent](const LTPieceIndex n)
+            , [this, &newTorrent](const lt::piece_index_t n)
         {
-            sendProgressSignal(LTUnderlyingType<LTPieceIndex> {n}, newTorrent.num_pieces());
+            sendProgressSignal(static_cast<LTUnderlyingType<lt::piece_index_t>>(n), newTorrent.num_pieces());
         });
         // Set qBittorrent as creator and add user comment to
         // torrent_info structure
@@ -207,7 +217,11 @@ void TorrentCreatorThread::run()
     }
 }
 
+#if (LIBTORRENT_VERSION_NUM >= 20000)
+int TorrentCreatorThread::calculateTotalPieces(const QString &inputPath, const int pieceSize, const TorrentFormat torrentFormat)
+#else
 int TorrentCreatorThread::calculateTotalPieces(const QString &inputPath, const int pieceSize, const bool isAlignmentOptimized, const int paddedFileSizeLimit)
+#endif
 {
     if (inputPath.isEmpty())
         return 0;
@@ -215,6 +229,10 @@ int TorrentCreatorThread::calculateTotalPieces(const QString &inputPath, const i
     lt::file_storage fs;
     lt::add_files(fs, Utils::Fs::toNativePath(inputPath).toStdString(), fileFilter);
 
+#if (LIBTORRENT_VERSION_NUM >= 20000)
+    return lt::create_torrent {fs, pieceSize, toNativeTorrentFormatFlag(torrentFormat)}.num_pieces();
+#else
     return lt::create_torrent(fs, pieceSize, paddedFileSizeLimit
-        , (isAlignmentOptimized ? lt::create_torrent::optimize_alignment : LTCreateFlags {})).num_pieces();
+        , (isAlignmentOptimized ? lt::create_torrent::optimize_alignment : lt::create_flags_t {})).num_pieces();
+#endif
 }

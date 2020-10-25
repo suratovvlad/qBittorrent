@@ -40,7 +40,6 @@ class QStandardItemModel;
 
 class LineEdit;
 class SearchHandler;
-class SearchListDelegate;
 class SearchSortModel;
 struct SearchResult;
 
@@ -51,7 +50,7 @@ namespace Ui
     class SearchJobWidget;
 }
 
-class SearchJobWidget : public QWidget
+class SearchJobWidget final : public QWidget
 {
     Q_OBJECT
     Q_DISABLE_COPY(SearchJobWidget)
@@ -124,7 +123,6 @@ private:
     SearchHandler *m_searchHandler;
     QStandardItemModel *m_searchListModel;
     SearchSortModel *m_proxyModel;
-    SearchListDelegate *m_searchDelegate;
     LineEdit *m_lineEditSearchResultsFilter;
     Status m_status = Status::Ongoing;
     bool m_noSearchResults = true;

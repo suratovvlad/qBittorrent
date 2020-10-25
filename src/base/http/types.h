@@ -34,8 +34,6 @@
 #include <QString>
 #include <QVector>
 
-#include "base/types.h"
-
 namespace Http
 {
     const char METHOD_GET[] = "GET";
@@ -65,7 +63,7 @@ namespace Http
 
     const char CONTENT_TYPE_HTML[] = "text/html";
     const char CONTENT_TYPE_CSS[] = "text/css";
-    const char CONTENT_TYPE_TXT[] = "text/plain";
+    const char CONTENT_TYPE_TXT[] = "text/plain; charset=UTF-8";
     const char CONTENT_TYPE_JS[] = "application/javascript";
     const char CONTENT_TYPE_JSON[] = "application/json";
     const char CONTENT_TYPE_GIF[] = "image/gif";
@@ -92,12 +90,20 @@ namespace Http
         QByteArray data;
     };
 
+    struct Header
+    {
+        QString name;
+        QString value;
+    };
+
+    using HeaderMap = QMap<QString, QString>;  // <Header name, Header value>
+
     struct Request
     {
         QString version;
         QString method;
         QString path;
-        QStringMap headers;
+        HeaderMap headers;
         QHash<QString, QByteArray> query;
         QHash<QString, QString> posts;
         QVector<UploadedFile> files;
@@ -112,7 +118,7 @@ namespace Http
     struct Response
     {
         ResponseStatus status;
-        QStringMap headers;
+        HeaderMap headers;
         QByteArray content;
 
         Response(uint code = 200, const QString &text = "OK")

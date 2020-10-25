@@ -43,6 +43,7 @@
 #include <QUrl>
 
 #include "base/bittorrent/downloadpriority.h"
+#include "base/bittorrent/infohash.h"
 #include "base/bittorrent/session.h"
 #include "base/bittorrent/torrenthandle.h"
 #include "base/preferences.h"
@@ -50,31 +51,31 @@
 #include "base/utils/fs.h"
 #include "base/utils/misc.h"
 #include "base/utils/string.h"
-#include "autoexpandabledialog.h"
+#include "gui/autoexpandabledialog.h"
+#include "gui/lineedit.h"
+#include "gui/raisedmessagebox.h"
+#include "gui/torrentcontentfiltermodel.h"
+#include "gui/torrentcontentmodel.h"
+#include "gui/uithememanager.h"
+#include "gui/utils.h"
 #include "downloadedpiecesbar.h"
-#include "lineedit.h"
 #include "peerlistwidget.h"
 #include "pieceavailabilitybar.h"
 #include "proplistdelegate.h"
 #include "proptabbar.h"
-#include "raisedmessagebox.h"
 #include "speedwidget.h"
-#include "torrentcontentfiltermodel.h"
-#include "torrentcontentmodel.h"
 #include "trackerlistwidget.h"
-#include "uithememanager.h"
-#include "utils.h"
-
 #include "ui_propertieswidget.h"
 
 #ifdef Q_OS_MACOS
-#include "macutilities.h"
+#include "gui/macutilities.h"
 #endif
 
 PropertiesWidget::PropertiesWidget(QWidget *parent)
     : QWidget(parent)
     , m_ui(new Ui::PropertiesWidget())
     , m_torrent(nullptr)
+    , m_handleWidth(-1)
 {
     m_ui->setupUi(this);
     setAutoFillBackground(true);
@@ -107,7 +108,7 @@ PropertiesWidget::PropertiesWidget(QWidget *parent)
     connect(m_ui->filesList, &QAbstractItemView::clicked
             , m_ui->filesList, qOverload<const QModelIndex &>(&QAbstractItemView::edit));
     connect(m_ui->filesList, &QWidget::customContextMenuRequested, this, &PropertiesWidget::displayFilesListMenu);
-    connect(m_ui->filesList, &QAbstractItemView::doubleClicked, this, &PropertiesWidget::openDoubleClickedFile);
+    connect(m_ui->filesList, &QAbstractItemView::doubleClicked, this, &PropertiesWidget::openItem);
     connect(m_ui->filesList->header(), &QHeaderView::sectionMoved, this, &PropertiesWidget::saveSettings);
     connect(m_ui->filesList->header(), &QHeaderView::sectionResized, this, &PropertiesWidget::saveSettings);
     connect(m_ui->filesList->header(), &QHeaderView::sortIndicatorChanged, this, &PropertiesWidget::saveSettings);
@@ -143,7 +144,7 @@ PropertiesWidget::PropertiesWidget(QWidget *parent)
     m_ui->vBoxLayoutPeerPage->addWidget(m_peerList);
     // Tab bar
     m_tabBar = new PropTabBar(nullptr);
-    m_tabBar->setContentsMargins(0, 5, 0, 0);
+    m_tabBar->setContentsMargins(0, 5, 0, 5);
     m_ui->verticalLayout->addLayout(m_tabBar);
     connect(m_tabBar, &PropTabBar::tabChanged, m_ui->stackedProperties, &QStackedWidget::setCurrentIndex);
     connect(m_tabBar, &PropTabBar::tabChanged, this, &PropertiesWidget::saveSettings);
@@ -191,7 +192,7 @@ void PropertiesWidget::showPiecesDownloaded(bool show)
         m_ui->lineBelowBars->setVisible(show);
 }
 
-void PropertiesWidget::setVisibility(bool visible)
+void PropertiesWidget::setVisibility(const bool visible)
 {
     if (!visible && (m_state == VISIBLE)) {
         const int tabBarHeight = m_tabBar->geometry().height(); // take height before hiding
@@ -200,6 +201,8 @@ void PropertiesWidget::setVisibility(bool visible)
         m_slideSizes = hSplitter->sizes();
         hSplitter->handle(1)->setVisible(false);
         hSplitter->handle(1)->setDisabled(true);
+        m_handleWidth = hSplitter->handleWidth();
+        hSplitter->setHandleWidth(0);
         const QList<int> sizes {(hSplitter->geometry().height() - tabBarHeight), tabBarHeight};
         hSplitter->setSizes(sizes);
         setMaximumSize(maximumSize().width(), tabBarHeight);
@@ -210,6 +213,8 @@ void PropertiesWidget::setVisibility(bool visible)
     if (visible && (m_state == REDUCED)) {
         m_ui->stackedProperties->setVisible(true);
         auto *hSplitter = static_cast<QSplitter *>(parentWidget());
+        if (m_handleWidth != -1)
+            hSplitter->setHandleWidth(m_handleWidth);
         hSplitter->handle(1)->setDisabled(false);
         hSplitter->handle(1)->setVisible(true);
         hSplitter->setSizes(m_slideSizes);
@@ -512,64 +517,41 @@ void PropertiesWidget::loadUrlSeeds()
     }
 }
 
-void PropertiesWidget::openDoubleClickedFile(const QModelIndex &index)
+QString PropertiesWidget::getFullPath(const QModelIndex &index) const
 {
-    if (!index.isValid() || !m_torrent || !m_torrent->hasMetadata()) return;
-
-    if (m_propListModel->itemType(index) == TorrentContentModelItem::FileType)
-        openFile(index);
-    else
-        openFolder(index, false);
-}
-
-void PropertiesWidget::openFile(const QModelIndex &index)
-{
-    int i = m_propListModel->getFileIndex(index);
-    const QDir saveDir(m_torrent->savePath(true));
-    const QString filename = m_torrent->filePath(i);
-    const QString filePath = Utils::Fs::expandPath(saveDir.absoluteFilePath(filename));
-    qDebug("Trying to open file at %s", qUtf8Printable(filePath));
-    // Flush data
-    m_torrent->flushCache();
-    Utils::Gui::openPath(filePath);
-}
-
-void PropertiesWidget::openFolder(const QModelIndex &index, bool containingFolder)
-{
-    QString absolutePath;
-    // FOLDER
-    if (m_propListModel->itemType(index) == TorrentContentModelItem::FolderType) {
-        // Generate relative path to selected folder
-        QStringList pathItems;
-        pathItems << index.data().toString();
-        QModelIndex parent = m_propListModel->parent(index);
-        while (parent.isValid()) {
-            pathItems.prepend(parent.data().toString());
-            parent = m_propListModel->parent(parent);
-        }
-        if (pathItems.isEmpty())
-            return;
-        const QDir saveDir(m_torrent->savePath(true));
-        const QString relativePath = pathItems.join('/');
-        absolutePath = Utils::Fs::expandPath(saveDir.absoluteFilePath(relativePath));
-    }
-    else {
-        int i = m_propListModel->getFileIndex(index);
-        const QDir saveDir(m_torrent->savePath(true));
-        const QString relativePath = m_torrent->filePath(i);
-        absolutePath = Utils::Fs::expandPath(saveDir.absoluteFilePath(relativePath));
+    if (m_propListModel->itemType(index) == TorrentContentModelItem::FileType) {
+        const int fileIdx = m_propListModel->getFileIndex(index);
+        const QString filename {m_torrent->filePath(fileIdx)};
+        const QDir saveDir {m_torrent->savePath(true)};
+        const QString fullPath {Utils::Fs::expandPath(saveDir.absoluteFilePath(filename))};
+        return fullPath;
     }
 
-    // Flush data
-    m_torrent->flushCache();
+    // folder type
+    const QModelIndex nameIndex {index.sibling(index.row(), TorrentContentModelItem::COL_NAME)};
+    QString folderPath {nameIndex.data().toString()};
+    for (QModelIndex modelIdx = m_propListModel->parent(nameIndex); modelIdx.isValid(); modelIdx = modelIdx.parent())
+        folderPath.prepend(modelIdx.data().toString() + '/');
+
+    const QDir saveDir {m_torrent->savePath(true)};
+    const QString fullPath {Utils::Fs::expandPath(saveDir.absoluteFilePath(folderPath))};
+    return fullPath;
+}
+
+void PropertiesWidget::openItem(const QModelIndex &index) const
+{
+    m_torrent->flushCache();  // Flush data
+    Utils::Gui::openPath(getFullPath(index));
+}
+
+void PropertiesWidget::openParentFolder(const QModelIndex &index) const
+{
+    const QString path = getFullPath(index);
+    m_torrent->flushCache();  // Flush data
 #ifdef Q_OS_MACOS
-    Q_UNUSED(containingFolder);
-    MacUtils::openFiles(QSet<QString>{absolutePath});
+    MacUtils::openFiles({path});
 #else
-    if (containingFolder)
-        Utils::Gui::openFolderSelect(absolutePath);
-    else
-        Utils::Gui::openPath(absolutePath);
+    Utils::Gui::openFolderSelect(path);
 #endif
 }
 
@@ -587,10 +569,10 @@ void PropertiesWidget::displayFilesListMenu(const QPoint &)
         const QModelIndex index = selectedRows[0];
 
         const QAction *actOpen = menu->addAction(UIThemeManager::instance()->getIcon("folder-documents"), tr("Open"));
-        connect(actOpen, &QAction::triggered, this, [this, index]() { openDoubleClickedFile(index); });
+        connect(actOpen, &QAction::triggered, this, [this, index]() { openItem(index); });
 
         const QAction *actOpenContainingFolder = menu->addAction(UIThemeManager::instance()->getIcon("inode-directory"), tr("Open Containing Folder"));
-        connect(actOpenContainingFolder, &QAction::triggered, this, [this, index]() { openFolder(index, true); });
+        connect(actOpenContainingFolder, &QAction::triggered, this, [this, index]() { openParentFolder(index); });
 
         const QAction *actRename = menu->addAction(UIThemeManager::instance()->getIcon("edit-rename"), tr("Rename..."));
         connect(actRename, &QAction::triggered, this, [this]() { m_ui->filesList->renameSelectedFile(m_torrent); });
@@ -682,7 +664,7 @@ void PropertiesWidget::openSelectedFile()
     const QModelIndexList selectedIndexes = m_ui->filesList->selectionModel()->selectedRows(0);
     if (selectedIndexes.size() != 1)
         return;
-    openDoubleClickedFile(selectedIndexes.first());
+    openItem(selectedIndexes.first());
 }
 
 void PropertiesWidget::configure()

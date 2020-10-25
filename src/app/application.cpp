@@ -61,6 +61,7 @@
 #endif // Q_OS_MACOS
 #endif
 
+#include "base/bittorrent/infohash.h"
 #include "base/bittorrent/session.h"
 #include "base/bittorrent/torrenthandle.h"
 #include "base/exceptions.h"
@@ -84,11 +85,11 @@
 #include "filelogger.h"
 
 #ifndef DISABLE_GUI
-#include "addnewtorrentdialog.h"
+#include "gui/addnewtorrentdialog.h"
 #include "gui/uithememanager.h"
 #include "gui/utils.h"
-#include "mainwindow.h"
-#include "shutdownconfirmdialog.h"
+#include "gui/mainwindow.h"
+#include "gui/shutdownconfirmdialog.h"
 #endif // DISABLE_GUI
 
 #ifndef DISABLE_WEBUI
@@ -135,6 +136,7 @@ Application::Application(int &argc, char **argv)
     , m_commandLineArgs(parseCommandLine(this->arguments()))
 {
     qRegisterMetaType<Log::Msg>("Log::Msg");
+    qRegisterMetaType<Log::Peer>("Log::Peer");
 
     setApplicationName("qBittorrent");
     setOrganizationDomain("qbittorrent.org");
@@ -387,7 +389,16 @@ void Application::runExternalProgram(const BitTorrent::TorrentHandle *torrent) c
     // enable command injection via torrent name and other arguments
     // (especially when some automated download mechanism has been setup).
     // See: https://github.com/qbittorrent/qBittorrent/issues/10925
+#if (QT_VERSION >= QT_VERSION_CHECK(5, 15, 0))
+    QStringList args = QProcess::splitCommand(program);
+    if (args.isEmpty())
+        return;
+
+    const QString command = args.takeFirst();
+    QProcess::startDetached(command, args);
+#else
     QProcess::startDetached(program);
+#endif
 #endif
 }
 
@@ -557,9 +568,7 @@ int Application::exec(const QStringList &params)
         connect(BitTorrent::Session::instance(), &BitTorrent::Session::torrentFinished, this, &Application::torrentFinished);
         connect(BitTorrent::Session::instance(), &BitTorrent::Session::allTorrentsFinished, this, &Application::allTorrentsFinished, Qt::QueuedConnection);
 
-#ifndef DISABLE_COUNTRIES_RESOLUTION
         Net::GeoIPManager::initInstance();
-#endif
         ScanFoldersModel::initInstance();
 
 #ifndef DISABLE_WEBUI
@@ -608,8 +617,6 @@ int Application::exec(const QStringList &params)
 #else
     UIThemeManager::initInstance();
     m_window = new MainWindow;
-
-    UIThemeManager::instance()->applyStyleSheet();
 
     // Enable Dark Theme
     auto darkThemePlugin = std::unique_ptr<libqdark::QDarkThemePlugin>{ new libqdark::QDarkThemePlugin{} };
@@ -760,9 +767,7 @@ void Application::cleanup()
 
     ScanFoldersModel::freeInstance();
     BitTorrent::Session::freeInstance();
-#ifndef DISABLE_COUNTRIES_RESOLUTION
     Net::GeoIPManager::freeInstance();
-#endif
     Net::DownloadManager::freeInstance();
     Net::ProxyConfigurationManager::freeInstance();
     Preferences::freeInstance();

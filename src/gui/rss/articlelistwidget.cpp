@@ -33,6 +33,7 @@
 #include "base/global.h"
 #include "base/rss/rss_article.h"
 #include "base/rss/rss_item.h"
+#include "gui/uithememanager.h"
 
 ArticleListWidget::ArticleListWidget(QWidget *parent)
     : QListWidget(parent)
@@ -97,8 +98,10 @@ void ArticleListWidget::handleArticleRead(RSS::Article *rssArticle)
     auto item = mapRSSArticle(rssArticle);
     if (!item) return;
 
-    item->setData(Qt::ForegroundRole, QPalette().color(QPalette::Inactive, QPalette::WindowText));
-    item->setData(Qt::DecorationRole, QIcon(":/icons/sphere.png"));
+    const QColor defaultColor {palette().color(QPalette::Inactive, QPalette::WindowText)};
+    const QBrush foregroundBrush {UIThemeManager::instance()->getColor("RSS.ReadArticle", defaultColor)};
+    item->setData(Qt::ForegroundRole, foregroundBrush);
+    item->setData(Qt::DecorationRole, UIThemeManager::instance()->getIcon(QLatin1String("sphere")));
 
     checkInvariant();
 }
@@ -122,12 +125,16 @@ QListWidgetItem *ArticleListWidget::createItem(RSS::Article *article) const
     item->setData(Qt::DisplayRole, article->title());
     item->setData(Qt::UserRole, reinterpret_cast<quintptr>(article));
     if (article->isRead()) {
-        item->setData(Qt::ForegroundRole, QPalette().color(QPalette::Inactive, QPalette::WindowText));
-        item->setData(Qt::DecorationRole, QIcon(":/icons/sphere.png"));
+        const QColor defaultColor {palette().color(QPalette::Inactive, QPalette::WindowText)};
+        const QBrush foregroundBrush {UIThemeManager::instance()->getColor("RSS.ReadArticle", defaultColor)};
+        item->setData(Qt::ForegroundRole, foregroundBrush);
+        item->setData(Qt::DecorationRole, UIThemeManager::instance()->getIcon(QLatin1String("sphere")));
     }
     else {
-        item->setData(Qt::ForegroundRole, QPalette().color(QPalette::Active, QPalette::Link));
-        item->setData(Qt::DecorationRole, QIcon(":/icons/sphere2.png"));
+        const QColor defaultColor {palette().color(QPalette::Active, QPalette::Link)};
+        const QBrush foregroundBrush {UIThemeManager::instance()->getColor("RSS.UnreadArticle", defaultColor)};
+        item->setData(Qt::ForegroundRole, foregroundBrush);
+        item->setData(Qt::DecorationRole, UIThemeManager::instance()->getIcon(QLatin1String("sphere")));
     }
 
     return item;
