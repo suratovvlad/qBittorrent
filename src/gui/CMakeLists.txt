@@ -26,6 +26,7 @@ add_library(qbt_gui STATIC
     powermanagement/powermanagement.h
     previewlistdelegate.h
     previewselectdialog.h
+    progressbardelegate.h
     properties/downloadedpiecesbar.h
     properties/peerlistsortmodel.h
     properties/peerlistwidget.h
@@ -66,6 +67,7 @@ add_library(qbt_gui STATIC
     torrentcontentmodelitem.h
     torrentcontenttreeview.h
     torrentcreatordialog.h
+    torrentoptionsdialog.h
     trackerentriesdialog.h
     transferlistdelegate.h
     transferlistfilterswidget.h
@@ -75,7 +77,6 @@ add_library(qbt_gui STATIC
     tristateaction.h
     tristatewidget.h
     uithememanager.h
-    updownratiodialog.h
     utils.h
 
     # sources
@@ -105,6 +106,7 @@ add_library(qbt_gui STATIC
     powermanagement/powermanagement.cpp
     previewlistdelegate.cpp
     previewselectdialog.cpp
+    progressbardelegate.cpp
     properties/downloadedpiecesbar.cpp
     properties/peerlistsortmodel.cpp
     properties/peerlistwidget.cpp
@@ -145,6 +147,7 @@ add_library(qbt_gui STATIC
     torrentcontentmodelitem.cpp
     torrentcontenttreeview.cpp
     torrentcreatordialog.cpp
+    torrentoptionsdialog.cpp
     trackerentriesdialog.cpp
     transferlistdelegate.cpp
     transferlistfilterswidget.cpp
@@ -154,7 +157,6 @@ add_library(qbt_gui STATIC
     tristateaction.cpp
     tristatewidget.cpp
     uithememanager.cpp
-    updownratiodialog.cpp
     utils.cpp
 
     # forms
@@ -184,8 +186,8 @@ add_library(qbt_gui STATIC
     statsdialog.ui
     torrentcategorydialog.ui
     torrentcreatordialog.ui
+    torrentoptionsdialog.ui
     trackerentriesdialog.ui
-    updownratiodialog.ui
 )
 
 target_sources(qbt_gui INTERFACE about.qrc)

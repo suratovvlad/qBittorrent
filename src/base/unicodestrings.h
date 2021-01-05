@@ -38,6 +38,7 @@
 // See issue #3059 for more details (https://github.com/qbittorrent/qBittorrent/issues/3059).
 
 const char C_COPYRIGHT[] = "©";
+const char C_INEQUALITY[] = "≠";
 const char C_INFINITY[] = "∞";
 const char C_NON_BREAKING_SPACE[] = " ";
 const char C_THIN_SPACE[] = " ";
@@ -45,6 +46,7 @@ const char C_UTP[] = "μTP";
 
 const char C_LOCALE_ARABIC[] = "عربي";
 const char C_LOCALE_ARMENIAN[] = "Հայերեն";
+const char C_LOCALE_AZERBAIJANI[] = "Azərbaycan dili";
 const char C_LOCALE_BASQUE[] = "Euskara";
 const char C_LOCALE_BULGARIAN[] = "Български";
 const char C_LOCALE_BYELORUSSIAN[] = "Беларуская";
@@ -57,9 +59,10 @@ const char C_LOCALE_CZECH[] = "Čeština";
 const char C_LOCALE_DANISH[] = "Dansk";
 const char C_LOCALE_DUTCH[] = "Nederlands";
 const char C_LOCALE_ENGLISH[] = "English";
-const char C_LOCALE_ENGLISH_AUSTRALIA[] = "English(Australia)";
-const char C_LOCALE_ENGLISH_UNITEDKINGDOM[] = "English(United Kingdom)";
+const char C_LOCALE_ENGLISH_AUSTRALIA[] = "English (Australia)";
+const char C_LOCALE_ENGLISH_UNITEDKINGDOM[] = "English (United Kingdom)";
 const char C_LOCALE_ESPERANTO[] = "Esperanto";
+const char C_LOCALE_ESTONIAN[] = "Eesti, eesti keel";
 const char C_LOCALE_FINNISH[] = "Suomi";
 const char C_LOCALE_FRENCH[] = "Français";
 const char C_LOCALE_GALICIAN[] = "Galego";
@@ -74,7 +77,8 @@ const char C_LOCALE_INDONESIAN[] = "Bahasa Indonesia";
 const char C_LOCALE_ITALIAN[] = "Italiano";
 const char C_LOCALE_JAPANESE[] = "日本語";
 const char C_LOCALE_KOREAN[] = "한글";
-const char C_LOCALE_LATVIAN[] = "latviešu valoda";
+const char C_LOCALE_LATGALIAN[] = "Latgalīšu volūda";
+const char C_LOCALE_LATVIAN[] = "Latviešu valoda";
 const char C_LOCALE_LITHUANIAN[] = "Lietuvių";
 const char C_LOCALE_MALAY[] = "بهاس ملايو";
 const char C_LOCALE_NORWEGIAN[] = "Norsk";
@@ -92,4 +96,4 @@ const char C_LOCALE_SWEDISH[] = "Svenska";
 const char C_LOCALE_TURKISH[] = "Türkçe";
 const char C_LOCALE_UKRAINIAN[] = "Українська";
 const char C_LOCALE_UZBEK[] = "أۇزبېك‎";
-const char C_LOCALE_VIETNAMESE[] = "tiếng Việt";
+const char C_LOCALE_VIETNAMESE[] = "Tiếng Việt";

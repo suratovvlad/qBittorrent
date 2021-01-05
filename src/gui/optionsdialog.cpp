@@ -68,6 +68,8 @@
 #include "uithememanager.h"
 #include "utils.h"
 
+#define SETTINGS_KEY(name) "OptionsDialog/" name
+
 namespace
 {
     QStringList translatedWeekdayNames()
@@ -84,15 +86,18 @@ namespace
 
     QString languageToLocalizedString(const QLocale &locale)
     {
-        switch (locale.language()) {
+        switch (locale.language())
+        {
         case QLocale::Arabic: return QString::fromUtf8(C_LOCALE_ARABIC);
         case QLocale::Armenian: return QString::fromUtf8(C_LOCALE_ARMENIAN);
+        case QLocale::Azerbaijani: return QString::fromUtf8(C_LOCALE_AZERBAIJANI);
         case QLocale::Basque: return QString::fromUtf8(C_LOCALE_BASQUE);
         case QLocale::Bulgarian: return QString::fromUtf8(C_LOCALE_BULGARIAN);
         case QLocale::Byelorussian: return QString::fromUtf8(C_LOCALE_BYELORUSSIAN);
         case QLocale::Catalan: return QString::fromUtf8(C_LOCALE_CATALAN);
         case QLocale::Chinese:
-            switch (locale.country()) {
+            switch (locale.country())
+            {
             case QLocale::China: return QString::fromUtf8(C_LOCALE_CHINESE_SIMPLIFIED);
             case QLocale::HongKong: return QString::fromUtf8(C_LOCALE_CHINESE_TRADITIONAL_HK);
             default: return QString::fromUtf8(C_LOCALE_CHINESE_TRADITIONAL_TW);
@@ -102,11 +107,13 @@ namespace
         case QLocale::Danish: return QString::fromUtf8(C_LOCALE_DANISH);
         case QLocale::Dutch: return QString::fromUtf8(C_LOCALE_DUTCH);
         case QLocale::English:
-            switch (locale.country()) {
+            switch (locale.country())
+            {
             case QLocale::Australia: return QString::fromUtf8(C_LOCALE_ENGLISH_AUSTRALIA);
             case QLocale::UnitedKingdom: return QString::fromUtf8(C_LOCALE_ENGLISH_UNITEDKINGDOM);
             default: return QString::fromUtf8(C_LOCALE_ENGLISH);
             }
+        case QLocale::Estonian: return QString::fromUtf8(C_LOCALE_ESTONIAN);
         case QLocale::Finnish: return QString::fromUtf8(C_LOCALE_FINNISH);
         case QLocale::French: return QString::fromUtf8(C_LOCALE_FRENCH);
         case QLocale::Galician: return QString::fromUtf8(C_LOCALE_GALICIAN);
@@ -124,7 +131,7 @@ namespace
         case QLocale::Latvian: return QString::fromUtf8(C_LOCALE_LATVIAN);
         case QLocale::Lithuanian: return QString::fromUtf8(C_LOCALE_LITHUANIAN);
         case QLocale::Malay: return QString::fromUtf8(C_LOCALE_MALAY);
-        case QLocale::Norwegian: return QString::fromUtf8(C_LOCALE_NORWEGIAN);
+        case QLocale::NorwegianBokmal: return QString::fromUtf8(C_LOCALE_NORWEGIAN);
         case QLocale::Occitan: return QString::fromUtf8(C_LOCALE_OCCITAN);
         case QLocale::Polish: return QString::fromUtf8(C_LOCALE_POLISH);
         case QLocale::Portuguese:
@@ -164,9 +171,10 @@ private:
 
 // Constructor
 OptionsDialog::OptionsDialog(QWidget *parent)
-    : QDialog(parent)
-    , m_refreshingIpFilter(false)
-    , m_ui(new Ui::OptionsDialog)
+    : QDialog {parent}
+    , m_ui {new Ui::OptionsDialog}
+    , m_storeDialogSize {SETTINGS_KEY("Size")}
+    , m_storeHSplitterSize {SETTINGS_KEY("HorizontalSplitterSizes")}
 {
     qDebug("-> Constructing Options");
     m_ui->setupUi(this);
@@ -195,7 +203,8 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     int maxHeight = -1;
     for (int i = 0; i < m_ui->tabSelection->count(); ++i)
         maxHeight = std::max(maxHeight, m_ui->tabSelection->visualItemRect(m_ui->tabSelection->item(i)).size().height());
-    for (int i = 0; i < m_ui->tabSelection->count(); ++i) {
+    for (int i = 0; i < m_ui->tabSelection->count(); ++i)
+    {
         const QSize size(std::numeric_limits<int>::max(), static_cast<int>(maxHeight * 1.2));
         m_ui->tabSelection->item(i)->setSizeHint(size);
     }
@@ -225,8 +234,10 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     m_ui->hsplitter->setCollapsible(1, false);
     // Get apply button in button box
     const QList<QAbstractButton *> buttons = m_ui->buttonBox->buttons();
-    for (QAbstractButton *button : buttons) {
-        if (m_ui->buttonBox->buttonRole(button) == QDialogButtonBox::ApplyRole) {
+    for (QAbstractButton *button : buttons)
+    {
+        if (m_ui->buttonBox->buttonRole(button) == QDialogButtonBox::ApplyRole)
+        {
             m_applyButton = button;
             break;
         }
@@ -263,7 +274,8 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     m_ui->checkShowSystray->setVisible(false);
 #else
     // Disable systray integration if it is not supported by the system
-    if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+    if (!QSystemTrayIcon::isSystemTrayAvailable())
+    {
         m_ui->checkShowSystray->setChecked(false);
         m_ui->checkShowSystray->setEnabled(false);
         m_ui->labelTrayIconStyle->setVisible(false);
@@ -351,7 +363,7 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     connect(m_ui->checkAdditionDialog, &QGroupBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkAdditionDialogFront, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkStartPaused, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
-    connect(m_ui->checkKeepTopLevelFolder, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
+    connect(m_ui->contentLayoutComboBox, qComboBoxCurrentIndexChanged, this, &ThisType::enableApplyButton);
     connect(m_ui->deleteTorrentBox, &QGroupBox::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->deleteCancelledTorrentBox, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
     connect(m_ui->checkExportDir, &QAbstractButton::toggled, this, &ThisType::enableApplyButton);
@@ -556,7 +568,7 @@ OptionsDialog::OptionsDialog(QWidget *parent)
     for (QSpinBox *widget : asConst(findChildren<QSpinBox *>()))
         widget->installEventFilter(wheelEventEater);
 
-    loadWindowState();
+    Utils::Gui::resize(this, m_storeDialogSize);
     show();
     // Have to be called after show(), because splitter width needed
     loadSplitterState();
@@ -567,15 +579,23 @@ void OptionsDialog::initializeLanguageCombo()
     // List language files
     const QDir langDir(":/lang");
     const QStringList langFiles = langDir.entryList(QStringList("qbittorrent_*.qm"), QDir::Files);
-    for (const QString &langFile : langFiles) {
+    for (const QString &langFile : langFiles)
+    {
         QString localeStr = langFile.mid(12); // remove "qbittorrent_"
         localeStr.chop(3); // Remove ".qm"
         QString languageName;
-        if (localeStr.startsWith("eo", Qt::CaseInsensitive)) {
+        if (localeStr.startsWith("eo", Qt::CaseInsensitive))
+        {
             // QLocale doesn't work with that locale. Esperanto isn't a "real" language.
             languageName = QString::fromUtf8(C_LOCALE_ESPERANTO);
         }
-        else {
+        else if (localeStr.startsWith("ltg", Qt::CaseInsensitive))
+        {
+            // QLocale doesn't work with that locale.
+            languageName = QString::fromUtf8(C_LOCALE_LATGALIAN);
+        }
+        else
+        {
             QLocale locale(localeStr);
             languageName = languageToLocalizedString(locale);
         }
@@ -589,7 +609,13 @@ OptionsDialog::~OptionsDialog()
 {
     qDebug("-> destructing Options");
 
-    saveWindowState();
+    // save dialog states
+    m_storeDialogSize = size();
+
+    QStringList hSplitterSizes;
+    for (const int size : asConst(m_ui->hsplitter->sizes()))
+        hSplitterSizes.append(QString::number(size));
+    m_storeHSplitterSize = hSplitterSizes;
 
     for (const QString &path : asConst(m_addedScanDirs))
         ScanFoldersModel::instance()->removePath(path);
@@ -604,37 +630,18 @@ void OptionsDialog::changePage(QListWidgetItem *current, QListWidgetItem *previo
     m_ui->tabOption->setCurrentIndex(m_ui->tabSelection->row(current));
 }
 
-void OptionsDialog::loadWindowState()
-{
-    Utils::Gui::resize(this, Preferences::instance()->getPrefSize());
-}
-
 void OptionsDialog::loadSplitterState()
 {
-    const QStringList sizesStr = Preferences::instance()->getPrefHSplitterSizes();
-
     // width has been modified, use height as width reference instead
     const int width = Utils::Gui::scaledSize(this
         , (m_ui->tabSelection->item(TAB_UI)->sizeHint().height() * 2));
-    QList<int> sizes {width, (m_ui->hsplitter->width() - width)};
-    if (sizesStr.size() == 2)
-        sizes = {sizesStr.first().toInt(), sizesStr.last().toInt()};
-    m_ui->hsplitter->setSizes(sizes);
-}
+    const QStringList defaultSizes = {QString::number(width), QString::number(m_ui->hsplitter->width() - width)};
 
-void OptionsDialog::saveWindowState() const
-{
-    Preferences *const pref = Preferences::instance();
+    QList<int> splitterSizes;
+    for (const QString &string : asConst(m_storeHSplitterSize.get(defaultSizes)))
+        splitterSizes.append(string.toInt());
 
-    // window size
-    pref->setPrefSize(size());
-
-    // Splitter size
-    const QStringList sizesStr = {
-        QString::number(m_ui->hsplitter->sizes().first()),
-        QString::number(m_ui->hsplitter->sizes().last())
-    };
-    pref->setPrefHSplitterSizes(sizesStr);
+    m_ui->hsplitter->setSizes(splitterSizes);
 }
 
 void OptionsDialog::saveOptions()
@@ -643,7 +650,8 @@ void OptionsDialog::saveOptions()
     Preferences *const pref = Preferences::instance();
     // Load the translation
     QString locale = getLocale();
-    if (pref->getLocale() != locale) {
+    if (pref->getLocale() != locale)
+    {
         auto *translator = new QTranslator;
         if (translator->load(QLatin1String(":/lang/qbittorrent_") + locale))
             qDebug("%s locale recognized, using translation.", qUtf8Printable(locale));
@@ -685,12 +693,14 @@ void OptionsDialog::saveOptions()
     Preferences::setMagnetLinkAssoc(m_ui->checkAssociateMagnetLinks->isChecked());
 #endif
 #ifdef Q_OS_MACOS
-    if (m_ui->checkAssociateTorrents->isChecked()) {
+    if (m_ui->checkAssociateTorrents->isChecked())
+    {
         Preferences::setTorrentFileAssoc();
         m_ui->checkAssociateTorrents->setChecked(Preferences::isTorrentFileAssocSet());
         m_ui->checkAssociateTorrents->setEnabled(!m_ui->checkAssociateTorrents->isChecked());
     }
-    if (m_ui->checkAssociateMagnetLinks->isChecked()) {
+    if (m_ui->checkAssociateMagnetLinks->isChecked())
+    {
         Preferences::setMagnetLinkAssoc();
         m_ui->checkAssociateMagnetLinks->setChecked(Preferences::isMagnetLinkAssocSet());
         m_ui->checkAssociateMagnetLinks->setEnabled(!m_ui->checkAssociateMagnetLinks->isChecked());
@@ -733,7 +743,7 @@ void OptionsDialog::saveOptions()
     AddNewTorrentDialog::setEnabled(useAdditionDialog());
     AddNewTorrentDialog::setTopLevel(m_ui->checkAdditionDialogFront->isChecked());
     session->setAddTorrentPaused(addTorrentsInPause());
-    session->setKeepTorrentTopLevelFolder(m_ui->checkKeepTopLevelFolder->isChecked());
+    session->setTorrentContentLayout(static_cast<BitTorrent::TorrentContentLayout>(m_ui->contentLayoutComboBox->currentIndex()));
     ScanFoldersModel::instance()->removeFromFSWatcher(m_removedScanDirs);
     ScanFoldersModel::instance()->addToFSWatcher(m_addedScanDirs);
     ScanFoldersModel::instance()->makePersistent();
@@ -806,7 +816,8 @@ void OptionsDialog::saveOptions()
     session->setGlobalMaxRatio(getMaxRatio());
     session->setGlobalMaxSeedingMinutes(getMaxSeedingMinutes());
 
-    const QVector<MaxRatioAction> actIndex = {
+    const QVector<MaxRatioAction> actIndex =
+    {
         Pause,
         Remove,
         DeleteFiles,
@@ -833,7 +844,8 @@ void OptionsDialog::saveOptions()
     // End Queueing system preferences
     // Web UI
     pref->setWebUiEnabled(isWebUiEnabled());
-    if (isWebUiEnabled()) {
+    if (isWebUiEnabled())
+    {
         pref->setServerDomains(m_ui->textServerDomains->text());
         pref->setWebUiAddress(m_ui->textWebUiAddress->text());
         pref->setWebUiPort(m_ui->spinWebUiPort->value());
@@ -884,7 +896,8 @@ bool OptionsDialog::isIPFilteringEnabled() const
 
 Net::ProxyType OptionsDialog::getProxyType() const
 {
-    switch (m_ui->comboProxyType->currentIndex()) {
+    switch (m_ui->comboProxyType->currentIndex())
+    {
     case 1:
         return Net::ProxyType::SOCKS4;
     case 2:
@@ -923,7 +936,8 @@ void OptionsDialog::loadOptions()
 
 #ifndef Q_OS_MACOS
     m_ui->checkShowSystray->setChecked(pref->systrayIntegration());
-    if (m_ui->checkShowSystray->isChecked()) {
+    if (m_ui->checkShowSystray->isChecked())
+    {
         m_ui->checkMinimizeToSysTray->setChecked(pref->minimizeToTray());
         m_ui->checkCloseToSystray->setChecked(pref->closeToTray());
         m_ui->comboTrayIcon->setCurrentIndex(pref->trayIconStyle());
@@ -977,7 +991,7 @@ void OptionsDialog::loadOptions()
     m_ui->checkAdditionDialog->setChecked(AddNewTorrentDialog::isEnabled());
     m_ui->checkAdditionDialogFront->setChecked(AddNewTorrentDialog::isTopLevel());
     m_ui->checkStartPaused->setChecked(session->isAddTorrentPaused());
-    m_ui->checkKeepTopLevelFolder->setChecked(session->isKeepTorrentTopLevelFolder());
+    m_ui->contentLayoutComboBox->setCurrentIndex(static_cast<int>(session->torrentContentLayout()));
     const TorrentFileGuard::AutoDeleteMode autoDeleteMode = TorrentFileGuard::autoDeleteMode();
     m_ui->deleteTorrentBox->setChecked(autoDeleteMode != TorrentFileGuard::Never);
     m_ui->deleteCancelledTorrentBox->setChecked(autoDeleteMode == TorrentFileGuard::Always);
@@ -997,12 +1011,14 @@ void OptionsDialog::loadOptions()
     m_ui->checkRecursiveDownload->setChecked(!pref->recursiveDownloadDisabled());
 
     strValue = session->torrentExportDirectory();
-    if (strValue.isEmpty()) {
+    if (strValue.isEmpty())
+    {
         // Disable
         m_ui->checkExportDir->setChecked(false);
         m_ui->textExportDir->setEnabled(false);
     }
-    else {
+    else
+    {
         // Enable
         m_ui->checkExportDir->setChecked(true);
         m_ui->textExportDir->setEnabled(true);
@@ -1010,12 +1026,14 @@ void OptionsDialog::loadOptions()
     }
 
     strValue = session->finishedTorrentExportDirectory();
-    if (strValue.isEmpty()) {
+    if (strValue.isEmpty())
+    {
         // Disable
         m_ui->checkExportDirFin->setChecked(false);
         m_ui->textExportDirFin->setEnabled(false);
     }
-    else {
+    else
+    {
         // Enable
         m_ui->checkExportDirFin->setChecked(true);
         m_ui->textExportDirFin->setEnabled(true);
@@ -1056,49 +1074,57 @@ void OptionsDialog::loadOptions()
     m_ui->spinPort->setDisabled(m_ui->checkRandomPort->isChecked());
 
     intValue = session->maxConnections();
-    if (intValue > 0) {
+    if (intValue > 0)
+    {
         // enable
         m_ui->checkMaxConnecs->setChecked(true);
         m_ui->spinMaxConnec->setEnabled(true);
         m_ui->spinMaxConnec->setValue(intValue);
     }
-    else {
+    else
+    {
         // disable
         m_ui->checkMaxConnecs->setChecked(false);
         m_ui->spinMaxConnec->setEnabled(false);
     }
     intValue = session->maxConnectionsPerTorrent();
-    if (intValue > 0) {
+    if (intValue > 0)
+    {
         // enable
         m_ui->checkMaxConnecsPerTorrent->setChecked(true);
         m_ui->spinMaxConnecPerTorrent->setEnabled(true);
         m_ui->spinMaxConnecPerTorrent->setValue(intValue);
     }
-    else {
+    else
+    {
         // disable
         m_ui->checkMaxConnecsPerTorrent->setChecked(false);
         m_ui->spinMaxConnecPerTorrent->setEnabled(false);
     }
     intValue = session->maxUploads();
-    if (intValue > 0) {
+    if (intValue > 0)
+    {
         // enable
         m_ui->checkMaxUploads->setChecked(true);
         m_ui->spinMaxUploads->setEnabled(true);
         m_ui->spinMaxUploads->setValue(intValue);
     }
-    else {
+    else
+    {
         // disable
         m_ui->checkMaxUploads->setChecked(false);
         m_ui->spinMaxUploads->setEnabled(false);
     }
     intValue = session->maxUploadsPerTorrent();
-    if (intValue > 0) {
+    if (intValue > 0)
+    {
         // enable
         m_ui->checkMaxUploadsPerTorrent->setChecked(true);
         m_ui->spinMaxUploadsPerTorrent->setEnabled(true);
         m_ui->spinMaxUploadsPerTorrent->setValue(intValue);
     }
-    else {
+    else
+    {
         // disable
         m_ui->checkMaxUploadsPerTorrent->setChecked(false);
         m_ui->spinMaxUploadsPerTorrent->setEnabled(false);
@@ -1108,7 +1134,8 @@ void OptionsDialog::loadOptions()
     Net::ProxyConfiguration proxyConf = proxyConfigManager->proxyConfiguration();
     using Net::ProxyType;
     bool useProxyAuth = false;
-    switch (proxyConf.type) {
+    switch (proxyConf.type)
+    {
     case ProxyType::SOCKS4:
         m_ui->comboProxyType->setCurrentIndex(1);
         break;
@@ -1181,32 +1208,37 @@ void OptionsDialog::loadOptions()
     m_ui->spinUploadRateForSlowTorrents->setValue(session->uploadRateForSlowTorrents());
     m_ui->spinSlowTorrentsInactivityTimer->setValue(session->slowTorrentsInactivityTimer());
 
-    if (session->globalMaxRatio() >= 0.) {
+    if (session->globalMaxRatio() >= 0.)
+    {
         // Enable
         m_ui->checkMaxRatio->setChecked(true);
         m_ui->spinMaxRatio->setEnabled(true);
         m_ui->comboRatioLimitAct->setEnabled(true);
         m_ui->spinMaxRatio->setValue(session->globalMaxRatio());
     }
-    else {
+    else
+    {
         // Disable
         m_ui->checkMaxRatio->setChecked(false);
         m_ui->spinMaxRatio->setEnabled(false);
     }
-    if (session->globalMaxSeedingMinutes() >= 0) {
+    if (session->globalMaxSeedingMinutes() >= 0)
+    {
         // Enable
         m_ui->checkMaxSeedingMinutes->setChecked(true);
         m_ui->spinMaxSeedingMinutes->setEnabled(true);
         m_ui->spinMaxSeedingMinutes->setValue(session->globalMaxSeedingMinutes());
     }
-    else {
+    else
+    {
         // Disable
         m_ui->checkMaxSeedingMinutes->setChecked(false);
         m_ui->spinMaxSeedingMinutes->setEnabled(false);
     }
     m_ui->comboRatioLimitAct->setEnabled((session->globalMaxSeedingMinutes() >= 0) || (session->globalMaxRatio() >= 0.));
 
-    const QHash<MaxRatioAction, int> actIndex = {
+    const QHash<MaxRatioAction, int> actIndex =
+    {
         {Pause, 0},
         {Remove, 1},
         {DeleteFiles, 2},
@@ -1382,16 +1414,20 @@ int OptionsDialog::getMaxUploadsPerTorrent() const
 
 void OptionsDialog::on_buttonBox_accepted()
 {
-    if (m_applyButton->isEnabled()) {
-        if (!schedTimesOk()) {
+    if (m_applyButton->isEnabled())
+    {
+        if (!schedTimesOk())
+        {
             m_ui->tabSelection->setCurrentRow(TAB_SPEED);
             return;
         }
-        if (!webUIAuthenticationOk()) {
+        if (!webUIAuthenticationOk())
+        {
             m_ui->tabSelection->setCurrentRow(TAB_WEBUI);
             return;
         }
-        if (!isAlternativeWebUIPathValid()) {
+        if (!isAlternativeWebUIPathValid())
+        {
             m_ui->tabSelection->setCurrentRow(TAB_WEBUI);
             return;
         }
@@ -1405,16 +1441,20 @@ void OptionsDialog::on_buttonBox_accepted()
 
 void OptionsDialog::applySettings(QAbstractButton *button)
 {
-    if (button == m_applyButton) {
-        if (!schedTimesOk()) {
+    if (button == m_applyButton)
+    {
+        if (!schedTimesOk())
+        {
             m_ui->tabSelection->setCurrentRow(TAB_SPEED);
             return;
         }
-        if (!webUIAuthenticationOk()) {
+        if (!webUIAuthenticationOk())
+        {
             m_ui->tabSelection->setCurrentRow(TAB_WEBUI);
             return;
         }
-        if (!isAlternativeWebUIPathValid()) {
+        if (!isAlternativeWebUIPathValid())
+        {
             m_ui->tabSelection->setCurrentRow(TAB_WEBUI);
             return;
         }
@@ -1452,24 +1492,28 @@ void OptionsDialog::toggleComboRatioLimitAct()
 
 void OptionsDialog::enableProxy(const int index)
 {
-    if (index >= 1) { // Any proxy type is used
+    if (index >= 1)
+    { // Any proxy type is used
         //enable
         m_ui->lblProxyIP->setEnabled(true);
         m_ui->textProxyIP->setEnabled(true);
         m_ui->lblProxyPort->setEnabled(true);
         m_ui->spinProxyPort->setEnabled(true);
         m_ui->checkProxyPeerConnecs->setEnabled(true);
-        if (index >= 2) { // SOCKS5 or HTTP
+        if (index >= 2)
+        { // SOCKS5 or HTTP
             m_ui->checkProxyAuth->setEnabled(true);
             m_ui->isProxyOnlyForTorrents->setEnabled(true);
         }
-        else {
+        else
+        {
             m_ui->checkProxyAuth->setEnabled(false);
             m_ui->isProxyOnlyForTorrents->setEnabled(false);
             m_ui->isProxyOnlyForTorrents->setChecked(true);
         }
     }
-    else { // No proxy
+    else
+    { // No proxy
         // disable
         m_ui->lblProxyIP->setEnabled(false);
         m_ui->textProxyIP->setEnabled(false);
@@ -1546,27 +1590,38 @@ QString OptionsDialog::getLocale() const
 void OptionsDialog::setLocale(const QString &localeStr)
 {
     QString name;
-    if (localeStr.startsWith("eo", Qt::CaseInsensitive)) {
+    if (localeStr.startsWith("eo", Qt::CaseInsensitive))
+    {
         name = "eo";
     }
-    else {
+    else if (localeStr.startsWith("ltg", Qt::CaseInsensitive))
+    {
+        name = "ltg";
+    }
+    else
+    {
         QLocale locale(localeStr);
         if (locale.language() == QLocale::Uzbek)
             name = "uz@Latn";
+        else if (locale.language() == QLocale::Azerbaijani)
+            name = "az@latin";
         else
             name = locale.name();
     }
     // Attempt to find exact match
     int index = m_ui->comboI18n->findData(name, Qt::UserRole);
-    if (index < 0) {
+    if (index < 0)
+    {
         //Attempt to find a language match without a country
         int pos = name.indexOf('_');
-        if (pos > -1) {
+        if (pos > -1)
+        {
             QString lang = name.left(pos);
             index = m_ui->comboI18n->findData(lang, Qt::UserRole);
         }
     }
-    if (index < 0) {
+    if (index < 0)
+    {
         // Unrecognized, use US English
         index = m_ui->comboI18n->findData("en", Qt::UserRole);
         Q_ASSERT(index >= 0);
@@ -1609,10 +1664,12 @@ void OptionsDialog::on_addScanFolderButton_clicked()
     Preferences *const pref = Preferences::instance();
     const QString dir = QFileDialog::getExistingDirectory(this, tr("Select folder to monitor"),
                                                           Utils::Fs::toNativePath(Utils::Fs::folderName(pref->getScanDirsLastPath())));
-    if (!dir.isEmpty()) {
+    if (!dir.isEmpty())
+    {
         const ScanFoldersModel::PathStatus status = ScanFoldersModel::instance()->addPath(dir, ScanFoldersModel::DEFAULT_LOCATION, QString(), false);
         QString error;
-        switch (status) {
+        switch (status)
+        {
         case ScanFoldersModel::AlreadyInList:
             error = tr("Folder is already being monitored:");
             break;
@@ -1642,7 +1699,8 @@ void OptionsDialog::on_removeScanFolderButton_clicked()
     if (selected.isEmpty())
         return;
     Q_ASSERT(selected.count() == ScanFoldersModel::instance()->columnCount());
-    for (const QModelIndex &index : selected) {
+    for (const QModelIndex &index : selected)
+    {
         if (index.column() == ScanFoldersModel::WATCH)
             m_removedScanDirs << index.data().toString();
     }
@@ -1697,13 +1755,15 @@ void OptionsDialog::webUIHttpsCertChanged(const QString &path, const ShowError s
         return;
 
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
+    if (!file.open(QIODevice::ReadOnly))
+    {
         if (showError == ShowError::Show)
             QMessageBox::warning(this, tr("Invalid path"), file.errorString());
         return;
     }
 
-    if (!Utils::Net::isSSLCertificatesValid(file.read(Utils::Net::MAX_SSL_FILE_SIZE))) {
+    if (!Utils::Net::isSSLCertificatesValid(file.read(Utils::Net::MAX_SSL_FILE_SIZE)))
+    {
         if (showError == ShowError::Show)
             QMessageBox::warning(this, tr("Invalid certificate"), tr("This is not a valid SSL certificate."));
         return;
@@ -1721,13 +1781,15 @@ void OptionsDialog::webUIHttpsKeyChanged(const QString &path, const ShowError sh
         return;
 
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly)) {
+    if (!file.open(QIODevice::ReadOnly))
+    {
         if (showError == ShowError::Show)
             QMessageBox::warning(this, tr("Invalid path"), file.errorString());
         return;
     }
 
-    if (!Utils::Net::isSSLKeyValid(file.read(Utils::Net::MAX_SSL_FILE_SIZE))) {
+    if (!Utils::Net::isSSLKeyValid(file.read(Utils::Net::MAX_SSL_FILE_SIZE)))
+    {
         if (showError == ShowError::Show)
             QMessageBox::warning(this, tr("Invalid key"), tr("This is not a valid SSL key."));
         return;
@@ -1772,7 +1834,8 @@ void OptionsDialog::handleIPFilterParsed(bool error, int ruleCount)
 
 bool OptionsDialog::schedTimesOk()
 {
-    if (m_ui->timeEditScheduleFrom->time() == m_ui->timeEditScheduleTo->time()) {
+    if (m_ui->timeEditScheduleFrom->time() == m_ui->timeEditScheduleTo->time())
+    {
         QMessageBox::warning(this, tr("Time Error"), tr("The start time and the end time can't be the same."));
         return false;
     }
@@ -1781,11 +1844,13 @@ bool OptionsDialog::schedTimesOk()
 
 bool OptionsDialog::webUIAuthenticationOk()
 {
-    if (webUiUsername().length() < 3) {
+    if (webUiUsername().length() < 3)
+    {
         QMessageBox::warning(this, tr("Length Error"), tr("The Web UI username must be at least 3 characters long."));
         return false;
     }
-    if (!webUiPassword().isEmpty() && (webUiPassword().length() < 6)) {
+    if (!webUiPassword().isEmpty() && (webUiPassword().length() < 6))
+    {
         QMessageBox::warning(this, tr("Length Error"), tr("The Web UI password must be at least 6 characters long."));
         return false;
     }
@@ -1794,7 +1859,8 @@ bool OptionsDialog::webUIAuthenticationOk()
 
 bool OptionsDialog::isAlternativeWebUIPathValid()
 {
-    if (m_ui->groupAltWebUI->isChecked() && m_ui->textWebUIRootFolder->selectedPath().trimmed().isEmpty()) {
+    if (m_ui->groupAltWebUI->isChecked() && m_ui->textWebUIRootFolder->selectedPath().trimmed().isEmpty())
+    {
         QMessageBox::warning(this, tr("Location Error"), tr("The alternative Web UI files location cannot be blank."));
         return false;
     }

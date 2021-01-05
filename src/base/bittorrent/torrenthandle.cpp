@@ -31,6 +31,8 @@
 
 #include <type_traits>
 
+#include <QHash>
+
 namespace BitTorrent
 {
     uint qHash(const TorrentState key, const uint seed)
@@ -48,6 +50,16 @@ namespace BitTorrent
 
     const qreal TorrentHandle::MAX_RATIO = 9999.;
     const int TorrentHandle::MAX_SEEDING_TIME = 525600;
+
+    bool TorrentHandle::isResumed() const
+    {
+        return !isPaused();
+    }
+
+    qlonglong TorrentHandle::remainingSize() const
+    {
+        return wantedSize() - completedSize();
+    }
 
     void TorrentHandle::toggleSequentialDownload()
     {

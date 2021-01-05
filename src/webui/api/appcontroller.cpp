@@ -56,6 +56,7 @@
 #include "base/utils/misc.h"
 #include "base/utils/net.h"
 #include "base/utils/password.h"
+#include "base/utils/string.h"
 #include "../webapplication.h"
 
 void AppController::webapiVersionAction()
@@ -70,7 +71,8 @@ void AppController::versionAction()
 
 void AppController::buildInfoAction()
 {
-    const QJsonObject versions = {
+    const QJsonObject versions =
+    {
         {"qt", QT_VERSION_STR},
         {"libtorrent", Utils::Misc::libtorrentVersionString()},
         {"boost", Utils::Misc::boostVersionString()},
@@ -99,7 +101,7 @@ void AppController::preferencesAction()
 
     // Downloads
     // When adding a torrent
-    data["create_subfolder_enabled"] = session->isKeepTorrentTopLevelFolder();
+    data["torrent_content_layout"] = Utils::String::fromEnum(session->torrentContentLayout());
     data["start_paused_enabled"] = session->isAddTorrentPaused();
     data["auto_delete_mode"] = static_cast<int>(TorrentFileGuard::autoDeleteMode());
     data["preallocate_all"] = session->isPreallocationEnabled();
@@ -117,7 +119,8 @@ void AppController::preferencesAction()
     // Automatically add torrents from
     const QVariantHash dirs = pref->getScanDirs();
     QJsonObject nativeDirs;
-    for (auto i = dirs.cbegin(); i != dirs.cend(); ++i) {
+    for (auto i = dirs.cbegin(); i != dirs.cend(); ++i)
+    {
         if (i.value().type() == QVariant::Int)
             nativeDirs.insert(Utils::Fs::toNativePath(i.key()), i.value().toInt());
         else
@@ -307,6 +310,8 @@ void AppController::preferencesAction()
     data["upnp_lease_duration"] = session->UPnPLeaseDuration();
     // uTP-TCP mixed mode
     data["utp_tcp_mixed_mode"] = static_cast<int>(session->utpMixedMode());
+    // Support internationalized domain name (IDN)
+    data["idn_support_enabled"] = session->isIDNSupportEnabled();
     // Multiple connections per IP
     data["enable_multi_connections_from_same_ip"] = session->multiConnectionsPerIpEnabled();
     // Validate HTTPS tracker certificate
@@ -351,8 +356,8 @@ void AppController::setPreferencesAction()
 
     // Downloads
     // When adding a torrent
-    if (hasKey("create_subfolder_enabled"))
-        session->setKeepTorrentTopLevelFolder(it.value().toBool());
+    if (hasKey("torrent_content_layout"))
+        session->setTorrentContentLayout(Utils::String::toEnum(it.value().toString(), BitTorrent::TorrentContentLayout::Original));
     if (hasKey("start_paused_enabled"))
         session->setAddTorrentPaused(it.value().toBool());
     if (hasKey("auto_delete_mode"))
@@ -383,21 +388,25 @@ void AppController::setPreferencesAction()
     if (hasKey("export_dir_fin"))
         session->setFinishedTorrentExportDirectory(it.value().toString());
     // Automatically add torrents from
-    if (hasKey("scan_dirs")) {
+    if (hasKey("scan_dirs"))
+    {
         const QVariantHash nativeDirs = it.value().toHash();
         QVariantHash oldScanDirs = pref->getScanDirs();
         QVariantHash scanDirs;
         ScanFoldersModel *model = ScanFoldersModel::instance();
-        for (auto i = nativeDirs.cbegin(); i != nativeDirs.cend(); ++i) {
+        for (auto i = nativeDirs.cbegin(); i != nativeDirs.cend(); ++i)
+        {
             QString folder = Utils::Fs::toUniformPath(i.key());
             int downloadType;
             QString downloadPath;
             ScanFoldersModel::PathStatus ec;
-            if (i.value().type() == QVariant::String) {
+            if (i.value().type() == QVariant::String)
+            {
                 downloadType = ScanFoldersModel::CUSTOM_LOCATION;
                 downloadPath = Utils::Fs::toUniformPath(i.value().toString());
             }
-            else {
+            else
+            {
                 downloadType = i.value().toInt();
                 downloadPath = (downloadType == ScanFoldersModel::DEFAULT_LOCATION) ? "Default folder" : "Watch folder";
             }
@@ -407,19 +416,23 @@ void AppController::setPreferencesAction()
             else
                 ec = model->updatePath(folder, static_cast<ScanFoldersModel::PathType>(downloadType), downloadPath);
 
-            if (ec == ScanFoldersModel::Ok) {
+            if (ec == ScanFoldersModel::Ok)
+            {
                 scanDirs.insert(folder, (downloadType == ScanFoldersModel::CUSTOM_LOCATION) ? QVariant(downloadPath) : QVariant(downloadType));
                 qDebug("New watched folder: %s to %s", qUtf8Printable(folder), qUtf8Printable(downloadPath));
             }
-            else {
+            else
+            {
                 qDebug("Watched folder %s failed with error %d", qUtf8Printable(folder), ec);
             }
         }
 
         // Update deleted folders
-        for (auto i = oldScanDirs.cbegin(); i != oldScanDirs.cend(); ++i) {
+        for (auto i = oldScanDirs.cbegin(); i != oldScanDirs.cend(); ++i)
+        {
             const QString &folder = i.key();
-            if (!scanDirs.contains(folder)) {
+            if (!scanDirs.contains(folder))
+            {
                 model->removePath(folder);
                 qDebug("Removed watched folder %s", qUtf8Printable(folder));
             }
@@ -555,13 +568,15 @@ void AppController::setPreferencesAction()
     if (hasKey("slow_torrent_inactive_timer"))
         session->setSlowTorrentsInactivityTimer(it.value().toInt());
     // Share Ratio Limiting
-    if (hasKey("max_ratio_enabled")) {
+    if (hasKey("max_ratio_enabled"))
+    {
         if (it.value().toBool())
             session->setGlobalMaxRatio(m["max_ratio"].toReal());
         else
             session->setGlobalMaxRatio(-1);
     }
-    if (hasKey("max_seeding_time_enabled")) {
+    if (hasKey("max_seeding_time_enabled"))
+    {
         if (it.value().toBool())
             session->setGlobalMaxSeedingMinutes(m["max_seeding_time"].toInt());
         else
@@ -577,14 +592,18 @@ void AppController::setPreferencesAction()
 
     // Web UI
     // Language
-    if (hasKey("locale")) {
+    if (hasKey("locale"))
+    {
         QString locale = it.value().toString();
-        if (pref->getLocale() != locale) {
+        if (pref->getLocale() != locale)
+        {
             auto *translator = new QTranslator;
-            if (translator->load(QLatin1String(":/lang/qbittorrent_") + locale)) {
+            if (translator->load(QLatin1String(":/lang/qbittorrent_") + locale))
+            {
                 qDebug("%s locale recognized, using translation.", qUtf8Printable(locale));
             }
-            else {
+            else
+            {
                 qDebug("%s locale unrecognized, using default (en).", qUtf8Printable(locale));
             }
             qApp->installTranslator(translator);
@@ -616,7 +635,8 @@ void AppController::setPreferencesAction()
         pref->setWebUiLocalAuthEnabled(!it.value().toBool());
     if (hasKey("bypass_auth_subnet_whitelist_enabled"))
         pref->setWebUiAuthSubnetWhitelistEnabled(it.value().toBool());
-    if (hasKey("bypass_auth_subnet_whitelist")) {
+    if (hasKey("bypass_auth_subnet_whitelist"))
+    {
         // recognize new lines and commas as delimiters
         pref->setWebUiAuthSubnetWhitelist(it.value().toString().split(QRegularExpression("\n|,"), QString::SkipEmptyParts));
     }
@@ -673,7 +693,8 @@ void AppController::setPreferencesAction()
     // Advanced settings
     // qBittorrent preferences
     // Current network interface
-    if (hasKey("current_network_interface")) {
+    if (hasKey("current_network_interface"))
+    {
         const QString ifaceValue {it.value().toString()};
 
         const QList<QNetworkInterface> ifaces = QNetworkInterface::allInterfaces();
@@ -687,7 +708,8 @@ void AppController::setPreferencesAction()
         session->setNetworkInterfaceName(ifaceName);
     }
     // Current network interface address
-    if (hasKey("current_interface_address")) {
+    if (hasKey("current_interface_address"))
+    {
         const QHostAddress ifaceAddress {it.value().toString().trimmed()};
         session->setNetworkInterfaceAddress(ifaceAddress.isNull() ? QString {} : ifaceAddress.toString());
     }
@@ -752,6 +774,9 @@ void AppController::setPreferencesAction()
     // uTP-TCP mixed mode
     if (hasKey("utp_tcp_mixed_mode"))
         session->setUtpMixedMode(static_cast<BitTorrent::MixedModeAlgorithm>(it.value().toInt()));
+    // Support internationalized domain name (IDN)
+    if (hasKey("idn_support_enabled"))
+        session->setIDNSupportEnabled(it.value().toBool());
     // Multiple connections per IP
     if (hasKey("enable_multi_connections_from_same_ip"))
         session->setMultiConnectionsPerIpEnabled(it.value().toBool());
@@ -777,7 +802,8 @@ void AppController::setPreferencesAction()
         session->setAnnounceToAllTrackers(it.value().toBool());
     if (hasKey("announce_to_all_tiers"))
         session->setAnnounceToAllTiers(it.value().toBool());
-    if (hasKey("announce_ip")) {
+    if (hasKey("announce_ip"))
+    {
         const QHostAddress announceAddr {it.value().toString().trimmed()};
         session->setAnnounceIP(announceAddr.isNull() ? QString {} : announceAddr.toString());
     }
@@ -805,9 +831,12 @@ void AppController::defaultSavePathAction()
 void AppController::networkInterfaceListAction()
 {
     QJsonArray ifaceList;
-    for (const QNetworkInterface &iface : asConst(QNetworkInterface::allInterfaces())) {
-        if (!iface.addressEntries().isEmpty()) {
-            ifaceList.append(QJsonObject {
+    for (const QNetworkInterface &iface : asConst(QNetworkInterface::allInterfaces()))
+    {
+        if (!iface.addressEntries().isEmpty())
+        {
+            ifaceList.append(QJsonObject
+            {
                 {"name", iface.humanReadableName()},
                 {"value", iface.name()}
             });
@@ -832,11 +861,13 @@ void AppController::networkInterfaceAddressListAction()
             addressList.append(addr.toString());
     };
 
-    if (ifaceName.isEmpty()) {
+    if (ifaceName.isEmpty())
+    {
         for (const QHostAddress &addr : asConst(QNetworkInterface::allAddresses()))
             appendAddress(addr);
     }
-    else {
+    else
+    {
         const QNetworkInterface iface = QNetworkInterface::interfaceFromName(ifaceName);
         for (const QNetworkAddressEntry &entry : asConst(iface.addressEntries()))
             appendAddress(entry.ip());

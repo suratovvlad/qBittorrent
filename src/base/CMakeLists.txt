@@ -2,12 +2,14 @@ add_library(qbt_base STATIC
     # headers
     algorithm.h
     asyncfilestorage.h
+    bittorrent/abstractfilestorage.h
     bittorrent/addtorrentparams.h
     bittorrent/bandwidthscheduler.h
     bittorrent/cachestatus.h
     bittorrent/common.h
     bittorrent/customstorage.h
     bittorrent/downloadpriority.h
+    bittorrent/filesearcher.h
     bittorrent/filterparserthread.h
     bittorrent/infohash.h
     bittorrent/ltqhash.h
@@ -23,6 +25,7 @@ add_library(qbt_base STATIC
     bittorrent/sessionstatus.h
     bittorrent/speedmonitor.h
     bittorrent/statistics.h
+    bittorrent/torrentcontentlayout.h
     bittorrent/torrentcreatorthread.h
     bittorrent/torrenthandle.h
     bittorrent/torrenthandleimpl.h
@@ -70,7 +73,6 @@ add_library(qbt_base STATIC
     settingsstorage.h
     torrentfileguard.h
     torrentfilter.h
-    tristatebool.h
     types.h
     unicodestrings.h
     utils/bytearray.h
@@ -87,9 +89,11 @@ add_library(qbt_base STATIC
 
     # sources
     asyncfilestorage.cpp
+    bittorrent/abstractfilestorage.cpp
     bittorrent/bandwidthscheduler.cpp
     bittorrent/customstorage.cpp
     bittorrent/downloadpriority.cpp
+    bittorrent/filesearcher.cpp
     bittorrent/filterparserthread.cpp
     bittorrent/infohash.cpp
     bittorrent/magneturi.cpp
@@ -145,7 +149,6 @@ add_library(qbt_base STATIC
     settingsstorage.cpp
     torrentfileguard.cpp
     torrentfilter.cpp
-    tristatebool.cpp
     utils/bytearray.cpp
     utils/foreignapps.cpp
     utils/fs.cpp

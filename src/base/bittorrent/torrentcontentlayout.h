@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2015  Vladimir Golovnev <glassez@yandex.ru>
+ * Copyright (C) 2020  Vladimir Golovnev <glassez@yandex.ru>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,47 +26,26 @@
  * exception statement from your version.
  */
 
-#ifndef TRISTATEBOOL_H
-#define TRISTATEBOOL_H
+#pragma once
 
-class TriStateBool
+#include <QMetaEnum>
+
+namespace BitTorrent
 {
-public:
-    static const TriStateBool Undefined;
-    static const TriStateBool False;
-    static const TriStateBool True;
-
-    constexpr TriStateBool() = default;
-    constexpr TriStateBool(const TriStateBool &other) = default;
-    explicit constexpr TriStateBool(const bool boolean)
+    // Using `Q_ENUM_NS()` without a wrapper namespace in our case is not advised
+    // since `Q_NAMESPACE` cannot be used when the same namespace resides at different files.
+    // https://www.kdab.com/new-qt-5-8-meta-object-support-namespaces/#comment-143779
+    inline namespace TorrentContentLayoutNS
     {
-        *this = boolean ? True : False;
+        Q_NAMESPACE
+
+        enum class TorrentContentLayout
+        {
+            Original,
+            Subfolder,
+            NoSubfolder
+        };
+
+        Q_ENUM_NS(TorrentContentLayout)
     }
-
-    TriStateBool &operator=(const TriStateBool &other) = default;  // TODO: add constexpr when using C++17
-
-    explicit constexpr operator signed char() const
-    {
-        return m_value;
-    }
-
-    constexpr friend bool operator==(const TriStateBool &left, const TriStateBool &right)
-    {
-        return (left.m_value == right.m_value);
-    }
-
-private:
-    explicit constexpr TriStateBool(const int value)
-        : m_value((value < 0) ? -1 : ((value > 0) ? 1 : 0))
-    {
-    }
-
-    signed char m_value = -1; // Undefined by default
-};
-
-constexpr bool operator!=(const TriStateBool &left, const TriStateBool &right)
-{
-    return !(left == right);
 }
-
-#endif // TRISTATEBOOL_H

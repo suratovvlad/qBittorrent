@@ -769,14 +769,50 @@
                 </widget>
                </item>
                <item>
-                <widget class="QCheckBox" name="checkKeepTopLevelFolder">
-                 <property name="text">
-                  <string>Keep top-level folder</string>
-                 </property>
-                 <property name="checked">
-                  <bool>true</bool>
-                 </property>
-                </widget>
+                <layout class="QHBoxLayout" name="horizontalLayout_19">
+                 <item>
+                  <widget class="QLabel" name="contentLayoutLabel">
+                   <property name="text">
+                    <string>Torrent content layout:</string>
+                   </property>
+                  </widget>
+                 </item>
+                 <item>
+                  <widget class="QComboBox" name="contentLayoutComboBox">
+                   <property name="currentIndex">
+                    <number>0</number>
+                   </property>
+                   <item>
+                    <property name="text">
+                     <string>Original</string>
+                    </property>
+                   </item>
+                   <item>
+                    <property name="text">
+                     <string>Create subfolder</string>
+                    </property>
+                   </item>
+                   <item>
+                    <property name="text">
+                     <string>Don't create subfolder</string>
+                    </property>
+                   </item>
+                  </widget>
+                 </item>
+                 <item>
+                  <spacer name="horizontalSpacer_20">
+                   <property name="orientation">
+                    <enum>Qt::Horizontal</enum>
+                   </property>
+                   <property name="sizeHint" stdset="0">
+                    <size>
+                     <width>40</width>
+                     <height>20</height>
+                    </size>
+                   </property>
+                  </spacer>
+                 </item>
+                </layout>
                </item>
                <item>
                 <widget class="QCheckBox" name="checkStartPaused">
@@ -1356,7 +1392,7 @@ Manual: Various torrent properties (e.g. save path) must be assigned manually</s
               <item>
                <widget class="QLabel" name="label_24">
                 <property name="text">
-                 <string>Enabled protocol:</string>
+                 <string>Peer connection protocol:</string>
                 </property>
                </widget>
               </item>
@@ -1866,7 +1902,7 @@ Manual: Various torrent properties (e.g. save path) must be assigned manually</s
                   <string> KiB/s</string>
                  </property>
                  <property name="maximum">
-                  <number>1000000</number>
+                  <number>2000000</number>
                  </property>
                  <property name="value">
                   <number>100</number>
@@ -1882,7 +1918,7 @@ Manual: Various torrent properties (e.g. save path) must be assigned manually</s
                   <string> KiB/s</string>
                  </property>
                  <property name="maximum">
-                  <number>1000000</number>
+                  <number>2000000</number>
                  </property>
                  <property name="value">
                   <number>100</number>
@@ -1937,7 +1973,7 @@ Manual: Various torrent properties (e.g. save path) must be assigned manually</s
                   <string> KiB/s</string>
                  </property>
                  <property name="maximum">
-                  <number>1000000</number>
+                  <number>2000000</number>
                  </property>
                  <property name="value">
                   <number>10</number>
@@ -2073,7 +2109,7 @@ Manual: Various torrent properties (e.g. save path) must be assigned manually</s
                   <string> KiB/s</string>
                  </property>
                  <property name="maximum">
-                  <number>1000000</number>
+                  <number>2000000</number>
                  </property>
                  <property name="value">
                   <number>10</number>

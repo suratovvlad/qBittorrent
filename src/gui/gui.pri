@@ -27,6 +27,7 @@ HEADERS += \
     $$PWD/powermanagement/powermanagement.h \
     $$PWD/previewlistdelegate.h \
     $$PWD/previewselectdialog.h \
+    $$PWD/progressbardelegate.h \
     $$PWD/properties/downloadedpiecesbar.h \
     $$PWD/properties/peerlistsortmodel.h \
     $$PWD/properties/peerlistwidget.h \
@@ -67,6 +68,7 @@ HEADERS += \
     $$PWD/torrentcontentmodelitem.h \
     $$PWD/torrentcontenttreeview.h \
     $$PWD/torrentcreatordialog.h \
+    $$PWD/torrentoptionsdialog.h \
     $$PWD/trackerentriesdialog.h \
     $$PWD/transferlistdelegate.h \
     $$PWD/transferlistfilterswidget.h \
@@ -76,7 +78,6 @@ HEADERS += \
     $$PWD/tristateaction.h \
     $$PWD/tristatewidget.h \
     $$PWD/uithememanager.h \
-    $$PWD/updownratiodialog.h \
     $$PWD/utils.h
 
 SOURCES += \
@@ -106,6 +107,7 @@ SOURCES += \
     $$PWD/powermanagement/powermanagement.cpp \
     $$PWD/previewlistdelegate.cpp \
     $$PWD/previewselectdialog.cpp \
+    $$PWD/progressbardelegate.cpp \
     $$PWD/properties/downloadedpiecesbar.cpp \
     $$PWD/properties/peerlistsortmodel.cpp \
     $$PWD/properties/peerlistwidget.cpp \
@@ -146,6 +148,7 @@ SOURCES += \
     $$PWD/torrentcontentmodelitem.cpp \
     $$PWD/torrentcontenttreeview.cpp \
     $$PWD/torrentcreatordialog.cpp \
+    $$PWD/torrentoptionsdialog.cpp \
     $$PWD/trackerentriesdialog.cpp \
     $$PWD/transferlistdelegate.cpp \
     $$PWD/transferlistfilterswidget.cpp \
@@ -155,7 +158,6 @@ SOURCES += \
     $$PWD/tristateaction.cpp \
     $$PWD/tristatewidget.cpp \
     $$PWD/uithememanager.cpp \
-    $$PWD/updownratiodialog.cpp \
     $$PWD/utils.cpp
 
 win32|macx {
@@ -167,7 +169,7 @@ unix:!macx:dbus {
     HEADERS += \
         $$PWD/powermanagement/powermanagement_x11.h \
         $$PWD/qtnotify/notifications.h
-        
+
     SOURCES += \
         $$PWD/powermanagement/powermanagement_x11.cpp \
         $$PWD/qtnotify/notifications.cpp
@@ -205,7 +207,7 @@ FORMS += \
     $$PWD/statsdialog.ui \
     $$PWD/torrentcategorydialog.ui \
     $$PWD/torrentcreatordialog.ui \
-    $$PWD/trackerentriesdialog.ui \
-    $$PWD/updownratiodialog.ui
+    $$PWD/torrentoptionsdialog.ui \
+    $$PWD/trackerentriesdialog.ui
 
 RESOURCES += $$PWD/about.qrc

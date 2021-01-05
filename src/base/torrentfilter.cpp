@@ -32,7 +32,7 @@
 #include "bittorrent/torrenthandle.h"
 
 const QString TorrentFilter::AnyCategory;
-const QStringSet TorrentFilter::AnyHash = (QStringSet() << QString());
+const InfoHashSet TorrentFilter::AnyHash {{}};
 const QString TorrentFilter::AnyTag;
 
 const TorrentFilter TorrentFilter::DownloadingTorrent(TorrentFilter::Downloading);
@@ -49,12 +49,7 @@ const TorrentFilter TorrentFilter::ErroredTorrent(TorrentFilter::Errored);
 
 using BitTorrent::TorrentHandle;
 
-TorrentFilter::TorrentFilter()
-    : m_type(All)
-{
-}
-
-TorrentFilter::TorrentFilter(const Type type, const QStringSet &hashSet, const QString &category, const QString &tag)
+TorrentFilter::TorrentFilter(const Type type, const InfoHashSet &hashSet, const QString &category, const QString &tag)
     : m_type(type)
     , m_category(category)
     , m_tag(tag)
@@ -62,7 +57,7 @@ TorrentFilter::TorrentFilter(const Type type, const QStringSet &hashSet, const Q
 {
 }
 
-TorrentFilter::TorrentFilter(const QString &filter, const QStringSet &hashSet, const QString &category, const QString &tag)
+TorrentFilter::TorrentFilter(const QString &filter, const InfoHashSet &hashSet, const QString &category, const QString &tag)
     : m_type(All)
     , m_category(category)
     , m_tag(tag)
@@ -73,7 +68,8 @@ TorrentFilter::TorrentFilter(const QString &filter, const QStringSet &hashSet, c
 
 bool TorrentFilter::setType(Type type)
 {
-    if (m_type != type) {
+    if (m_type != type)
+    {
         m_type = type;
         return true;
     }
@@ -111,9 +107,10 @@ bool TorrentFilter::setTypeByName(const QString &filter)
     return setType(type);
 }
 
-bool TorrentFilter::setHashSet(const QStringSet &hashSet)
+bool TorrentFilter::setHashSet(const InfoHashSet &hashSet)
 {
-    if (m_hashSet != hashSet) {
+    if (m_hashSet != hashSet)
+    {
         m_hashSet = hashSet;
         return true;
     }
@@ -126,7 +123,8 @@ bool TorrentFilter::setCategory(const QString &category)
     // QString::operator==() doesn't distinguish between empty and null strings.
     if ((m_category != category)
             || (m_category.isNull() && !category.isNull())
-            || (!m_category.isNull() && category.isNull())) {
+            || (!m_category.isNull() && category.isNull()))
+            {
         m_category = category;
         return true;
     }
@@ -139,7 +137,8 @@ bool TorrentFilter::setTag(const QString &tag)
     // QString::operator==() doesn't distinguish between empty and null strings.
     if ((m_tag != tag)
         || (m_tag.isNull() && !tag.isNull())
-        || (!m_tag.isNull() && tag.isNull())) {
+        || (!m_tag.isNull() && tag.isNull()))
+        {
         m_tag = tag;
         return true;
     }
@@ -156,7 +155,8 @@ bool TorrentFilter::match(const TorrentHandle *const torrent) const
 
 bool TorrentFilter::matchState(const BitTorrent::TorrentHandle *const torrent) const
 {
-    switch (m_type) {
+    switch (m_type)
+    {
     case All:
         return true;
     case Downloading:

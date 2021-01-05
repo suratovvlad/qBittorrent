@@ -217,7 +217,8 @@ namespace
 
             bool ok;
             int res = val.toInt(&ok);
-            if (!ok) {
+            if (!ok)
+            {
                 qDebug() << QObject::tr("Expected integer number in environment variable '%1', but got '%2'")
                     .arg(envVarName(), val);
                 return defaultValue;
@@ -253,21 +254,25 @@ namespace
             return padUsageText(fullParameter() + QLatin1String("=<true|false>"));
         }
 
-        TriStateBool value(const QString &arg) const
+        std::optional<bool> value(const QString &arg) const
         {
             QStringList parts = arg.split(QLatin1Char('='));
 
-            if (parts.size() == 1) {
-                return TriStateBool(m_defaultValue);
+            if (parts.size() == 1)
+            {
+                return m_defaultValue;
             }
-            if (parts.size() == 2) {
+            if (parts.size() == 2)
+            {
                 QString val = parts[1];
 
-                if ((val.toUpper() == QLatin1String("TRUE")) || (val == QLatin1String("1"))) {
-                    return TriStateBool::True;
+                if ((val.toUpper() == QLatin1String("TRUE")) || (val == QLatin1String("1")))
+                {
+                    return true;
                 }
-                if ((val.toUpper() == QLatin1String("FALSE")) || (val == QLatin1String("0"))) {
-                    return TriStateBool::False;
+                if ((val.toUpper() == QLatin1String("FALSE")) || (val == QLatin1String("0")))
+                {
+                    return false;
                 }
             }
 
@@ -277,26 +282,30 @@ namespace
                                             .arg(fullParameter(), QLatin1String("<true|false>")));
         }
 
-        TriStateBool value(const QProcessEnvironment &env) const
+        std::optional<bool> value(const QProcessEnvironment &env) const
         {
             const QString val = env.value(envVarName(), "-1");
 
-            if (val.isEmpty()) {
-                return TriStateBool(m_defaultValue);
+            if (val.isEmpty())
+            {
+                return m_defaultValue;
             }
-            if (val == QLatin1String("-1")) {
-                return TriStateBool::Undefined;
+            if (val == QLatin1String("-1"))
+            {
+                return std::nullopt;
             }
-            if ((val.toUpper() == QLatin1String("TRUE")) || (val == QLatin1String("1"))) {
-                return TriStateBool::True;
+            if ((val.toUpper() == QLatin1String("TRUE")) || (val == QLatin1String("1")))
+            {
+                return true;
             }
-            if ((val.toUpper() == QLatin1String("FALSE")) || (val == QLatin1String("0"))) {
-                return TriStateBool::False;
+            if ((val.toUpper() == QLatin1String("FALSE")) || (val == QLatin1String("0")))
+            {
+                return false;
             }
 
             qDebug() << QObject::tr("Expected %1 in environment variable '%2', but got '%3'")
                 .arg(QLatin1String("true|false"), envVarName(), val);
-            return TriStateBool::Undefined;
+            return std::nullopt;
         }
 
         bool m_defaultValue;
@@ -365,12 +374,8 @@ QStringList QBtCommandLineParameters::paramList() const
     if (!savePath.isEmpty())
         result.append(QLatin1String("@savePath=") + savePath);
 
-    if (addPaused == TriStateBool::True) {
-        result.append(QLatin1String("@addPaused=1"));
-    }
-    else if (addPaused == TriStateBool::False) {
-        result.append(QLatin1String("@addPaused=0"));
-    }
+    if (addPaused.has_value())
+        result.append(*addPaused ? QLatin1String {"@addPaused=1"} : QLatin1String {"@addPaused=0"});
 
     if (skipChecking)
         result.append(QLatin1String("@skipChecking"));
@@ -384,12 +389,8 @@ QStringList QBtCommandLineParameters::paramList() const
     if (firstLastPiecePriority)
         result.append(QLatin1String("@firstLastPiecePriority"));
 
-    if (skipDialog == TriStateBool::True) {
-        result.append(QLatin1String("@skipDialog=1"));
-    }
-    else if (skipDialog == TriStateBool::False) {
-        result.append(QLatin1String("@skipDialog=0"));
-    }
+    if (skipDialog.has_value())
+        result.append(*skipDialog ? QLatin1String {"@skipDialog=1"} : QLatin1String {"@skipDialog=0"});
 
     result += torrents;
     return result;
@@ -399,72 +400,91 @@ QBtCommandLineParameters parseCommandLine(const QStringList &args)
 {
     QBtCommandLineParameters result {QProcessEnvironment::systemEnvironment()};
 
-    for (int i = 1; i < args.count(); ++i) {
+    for (int i = 1; i < args.count(); ++i)
+    {
         const QString &arg = args[i];
 
         if ((arg.startsWith("--") && !arg.endsWith(".torrent"))
-            || (arg.startsWith('-') && (arg.size() == 2))) {
+            || (arg.startsWith('-') && (arg.size() == 2)))
+            {
             // Parse known parameters
-            if (arg == SHOW_HELP_OPTION) {
+            if (arg == SHOW_HELP_OPTION)
+            {
                 result.showHelp = true;
             }
 #if !defined(Q_OS_WIN) || defined(DISABLE_GUI)
-            else if (arg == SHOW_VERSION_OPTION) {
+            else if (arg == SHOW_VERSION_OPTION)
+            {
                 result.showVersion = true;
             }
 #endif
-            else if (arg == WEBUI_PORT_OPTION) {
+            else if (arg == WEBUI_PORT_OPTION)
+            {
                 result.webUiPort = WEBUI_PORT_OPTION.value(arg);
                 if ((result.webUiPort < 1) || (result.webUiPort > 65535))
                     throw CommandLineParameterError(QObject::tr("%1 must specify a valid port (1 to 65535).")
                                                     .arg(QLatin1String("--webui-port")));
             }
 #ifndef DISABLE_GUI
-            else if (arg == NO_SPLASH_OPTION) {
+            else if (arg == NO_SPLASH_OPTION)
+            {
                 result.noSplash = true;
             }
 #elif !defined(Q_OS_WIN)
-            else if (arg == DAEMON_OPTION) {
+            else if (arg == DAEMON_OPTION)
+            {
                 result.shouldDaemonize = true;
             }
 #endif
-            else if (arg == PROFILE_OPTION) {
+            else if (arg == PROFILE_OPTION)
+            {
                 result.profileDir = PROFILE_OPTION.value(arg);
             }
-            else if (arg == RELATIVE_FASTRESUME) {
+            else if (arg == RELATIVE_FASTRESUME)
+            {
                 result.relativeFastresumePaths = true;
             }
-            else if (arg == CONFIGURATION_OPTION) {
+            else if (arg == CONFIGURATION_OPTION)
+            {
                 result.configurationName = CONFIGURATION_OPTION.value(arg);
             }
-            else if (arg == SAVE_PATH_OPTION) {
+            else if (arg == SAVE_PATH_OPTION)
+            {
                 result.savePath = SAVE_PATH_OPTION.value(arg);
             }
-            else if (arg == PAUSED_OPTION) {
+            else if (arg == PAUSED_OPTION)
+            {
                 result.addPaused = PAUSED_OPTION.value(arg);
             }
-            else if (arg == SKIP_HASH_CHECK_OPTION) {
+            else if (arg == SKIP_HASH_CHECK_OPTION)
+            {
                 result.skipChecking = true;
             }
-            else if (arg == CATEGORY_OPTION) {
+            else if (arg == CATEGORY_OPTION)
+            {
                 result.category = CATEGORY_OPTION.value(arg);
             }
-            else if (arg == SEQUENTIAL_OPTION) {
+            else if (arg == SEQUENTIAL_OPTION)
+            {
                 result.sequential = true;
             }
-            else if (arg == FIRST_AND_LAST_OPTION) {
+            else if (arg == FIRST_AND_LAST_OPTION)
+            {
                 result.firstLastPiecePriority = true;
             }
-            else if (arg == SKIP_DIALOG_OPTION) {
+            else if (arg == SKIP_DIALOG_OPTION)
+            {
                 result.skipDialog = SKIP_DIALOG_OPTION.value(arg);
             }
-            else {
+            else
+            {
                 // Unknown argument
                 result.unknownParameter = arg;
                 break;
             }
         }
-        else {
+        else
+        {
             QFileInfo torrentPath;
             torrentPath.setFile(arg);
 
@@ -495,11 +515,14 @@ QString wrapText(const QString &text, int initialIndentation = USAGE_TEXT_COLUMN
     QStringList lines = {words.first()};
     int currentLineMaxLength = wrapAtColumn - initialIndentation;
 
-    for (const QString &word : asConst(words.mid(1))) {
-        if (lines.last().length() + word.length() + 1 < currentLineMaxLength) {
+    for (const QString &word : asConst(words.mid(1)))
+    {
+        if (lines.last().length() + word.length() + 1 < currentLineMaxLength)
+        {
             lines.last().append(' ' + word);
         }
-        else {
+        else
+        {
             lines.append(QString(initialIndentation, ' ') + word);
             currentLineMaxLength = wrapAtColumn;
         }

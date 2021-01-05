@@ -26,10 +26,9 @@
  * exception statement from your version.
  */
 
-#ifndef PROPLISTDELEGATE_H
-#define PROPLISTDELEGATE_H
+#pragma once
 
-#include <QStyledItemDelegate>
+#include "gui/progressbardelegate.h"
 
 class QAbstractItemModel;
 class QModelIndex;
@@ -49,14 +48,13 @@ enum PropColumn
     AVAILABILITY
 };
 
-class PropListDelegate final : public QStyledItemDelegate
+class PropListDelegate final : public ProgressBarDelegate
 {
     Q_OBJECT
 
 public:
     explicit PropListDelegate(PropertiesWidget *properties);
 
-    void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override;
     void setEditorData(QWidget *editor, const QModelIndex &index) const override;
     QWidget *createEditor(QWidget *parent, const QStyleOptionViewItem & /* option */, const QModelIndex &index) const override;
 
@@ -68,7 +66,7 @@ signals:
     void filteredFilesChanged() const;
 
 private:
+    void initProgressStyleOption(QStyleOptionProgressBar &option, const QModelIndex &index) const override;
+
     PropertiesWidget *m_properties;
 };
-
-#endif // PROPLISTDELEGATE_H

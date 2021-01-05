@@ -29,15 +29,14 @@
 
 #pragma once
 
-#include <QHash>
 #include <QMetaType>
-#include <QSet>
 #include <QString>
-#include <QVector>
+#include <QtContainerFwd>
+
+#include "abstractfilestorage.h"
 
 class QBitArray;
 class QDateTime;
-class QStringList;
 class QUrl;
 
 namespace BitTorrent
@@ -49,6 +48,12 @@ namespace BitTorrent
     class TrackerEntry;
     struct PeerAddress;
 
+    enum class TorrentOperatingMode
+    {
+        AutoManaged = 0,
+        Forced = 1
+    };
+
     enum class TorrentState
     {
         Unknown = -1,
@@ -56,7 +61,6 @@ namespace BitTorrent
         ForcedDownloading,
         Downloading,
         DownloadingMetadata,
-        Allocating,
         StalledDownloading,
 
         ForcedUploading,
@@ -87,7 +91,7 @@ namespace BitTorrent
 
     uint qHash(TorrentState key, uint seed);
 
-    class TorrentHandle
+    class TorrentHandle : public AbstractFileStorage
     {
     public:
         static const qreal USE_GLOBAL_RATIO;
@@ -110,7 +114,6 @@ namespace BitTorrent
         virtual qlonglong totalSize() const = 0;
         virtual qlonglong wantedSize() const = 0;
         virtual qlonglong completedSize() const = 0;
-        virtual qlonglong incompletedSize() const = 0;
         virtual qlonglong pieceLength() const = 0;
         virtual qlonglong wastedSize() const = 0;
         virtual QString currentTracker() const = 0;
@@ -176,9 +179,6 @@ namespace BitTorrent
         virtual bool removeTag(const QString &tag) = 0;
         virtual void removeAllTags() = 0;
 
-        virtual bool hasRootFolder() const = 0;
-
-        virtual int filesCount() const = 0;
         virtual int piecesCount() const = 0;
         virtual int piecesHave() const = 0;
         virtual qreal progress() const = 0;
@@ -186,16 +186,12 @@ namespace BitTorrent
         virtual qreal ratioLimit() const = 0;
         virtual int seedingTimeLimit() const = 0;
 
-        virtual QString filePath(int index) const = 0;
-        virtual QString fileName(int index) const = 0;
-        virtual qlonglong fileSize(int index) const = 0;
         virtual QStringList absoluteFilePaths() const = 0;
         virtual QVector<DownloadPriority> filePriorities() const = 0;
 
         virtual TorrentInfo info() const = 0;
         virtual bool isSeed() const = 0;
         virtual bool isPaused() const = 0;
-        virtual bool isResumed() const = 0;
         virtual bool isQueued() const = 0;
         virtual bool isForced() const = 0;
         virtual bool isChecking() const = 0;
@@ -240,6 +236,9 @@ namespace BitTorrent
         virtual int downloadLimit() const = 0;
         virtual int uploadLimit() const = 0;
         virtual bool superSeeding() const = 0;
+        virtual bool isDHTDisabled() const = 0;
+        virtual bool isPEXDisabled() const = 0;
+        virtual bool isLSDDisabled() const = 0;
         virtual QVector<PeerInfo> peers() const = 0;
         virtual QBitArray pieces() const = 0;
         virtual QBitArray downloadingPieces() const = 0;
@@ -267,18 +266,20 @@ namespace BitTorrent
         virtual void setSequentialDownload(bool enable) = 0;
         virtual void setFirstLastPiecePriority(bool enabled) = 0;
         virtual void pause() = 0;
-        virtual void resume(bool forced = false) = 0;
+        virtual void resume(TorrentOperatingMode mode = TorrentOperatingMode::AutoManaged) = 0;
         virtual void move(QString path) = 0;
         virtual void forceReannounce(int index = -1) = 0;
         virtual void forceDHTAnnounce() = 0;
         virtual void forceRecheck() = 0;
-        virtual void renameFile(int index, const QString &name) = 0;
         virtual void prioritizeFiles(const QVector<DownloadPriority> &priorities) = 0;
         virtual void setRatioLimit(qreal limit) = 0;
         virtual void setSeedingTimeLimit(int limit) = 0;
         virtual void setUploadLimit(int limit) = 0;
         virtual void setDownloadLimit(int limit) = 0;
         virtual void setSuperSeeding(bool enable) = 0;
+        virtual void setDHTDisabled(bool disable) = 0;
+        virtual void setPEXDisabled(bool disable) = 0;
+        virtual void setLSDDisabled(bool disable) = 0;
         virtual void flushCache() const = 0;
         virtual void addTrackers(const QVector<TrackerEntry> &trackers) = 0;
         virtual void replaceTrackers(const QVector<TrackerEntry> &trackers) = 0;
@@ -288,6 +289,9 @@ namespace BitTorrent
         virtual void clearPeers() = 0;
 
         virtual QString createMagnetURI() const = 0;
+
+        bool isResumed() const;
+        qlonglong remainingSize() const;
 
         void toggleSequentialDownload();
         void toggleFirstLastPiecePriority();

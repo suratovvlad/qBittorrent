@@ -28,10 +28,13 @@
 
 #include "net.h"
 
+#include <QList>
 #include <QNetworkInterface>
+#include <QPair>
 #include <QSslCertificate>
 #include <QSslKey>
 #include <QString>
+#include <QVector>
 
 namespace Utils
 {
@@ -70,12 +73,14 @@ namespace Utils
             QHostAddress protocolEquivalentAddress;
             bool addrConversionOk = false;
 
-            if (addr.protocol() == QAbstractSocket::IPv4Protocol) {
+            if (addr.protocol() == QAbstractSocket::IPv4Protocol)
+            {
                 // always succeeds
                 protocolEquivalentAddress = QHostAddress(addr.toIPv6Address());
                 addrConversionOk = true;
             }
-            else {
+            else
+            {
                 // only succeeds when addr is an ipv4-mapped ipv6 address
                 protocolEquivalentAddress = QHostAddress(addr.toIPv4Address(&addrConversionOk));
             }

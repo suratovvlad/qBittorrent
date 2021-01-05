@@ -29,6 +29,7 @@
 #include "bytearray.h"
 
 #include <QByteArray>
+#include <QVector>
 
 QVector<QByteArray> Utils::ByteArray::splitToViews(const QByteArray &in, const QByteArray &sep, const QString::SplitBehavior behavior)
 {
@@ -40,7 +41,8 @@ QVector<QByteArray> Utils::ByteArray::splitToViews(const QByteArray &in, const Q
                 ? (1 + (in.size() / sep.size()))
                 : (1 + (in.size() / (sep.size() + 1))));
     int head = 0;
-    while (head < in.size()) {
+    while (head < in.size())
+    {
         int end = in.indexOf(sep, head);
         if (end < 0)
             end = in.size();

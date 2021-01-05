@@ -32,12 +32,6 @@
 
 namespace
 {
-    bool isPaused(const lt::torrent_status &torrentStatus)
-    {
-        return ((torrentStatus.flags & lt::torrent_flags::paused)
-                && !(torrentStatus.flags & lt::torrent_flags::auto_managed));
-    }
-
     bool isAutoManaged(const lt::torrent_status &torrentStatus)
     {
         return static_cast<bool>(torrentStatus.flags & lt::torrent_flags::auto_managed);
@@ -49,17 +43,6 @@ NativeTorrentExtension::NativeTorrentExtension(const lt::torrent_handle &torrent
 {
 }
 
-// This method is called when state of torrent is changed
-void NativeTorrentExtension::on_state(const lt::torrent_status::state_t state)
-{
-    // When a torrent enters "checking files" state while paused, we temporarily resume it
-    // (really we just allow libtorrent to resume it by enabling auto management for it).
-    if (state == lt::torrent_status::checking_files) {
-        if (isPaused(m_torrentHandle.status({})))
-            m_torrentHandle.set_flags(lt::torrent_flags::stop_when_ready | lt::torrent_flags::auto_managed);
-    }
-}
-
 bool NativeTorrentExtension::on_pause()
 {
     if (!isAutoManaged(m_torrentHandle.status({})))
@@ -68,4 +51,12 @@ bool NativeTorrentExtension::on_pause()
     // return `false` to allow standard handler
     // and other extensions to be also invoked.
     return false;
+}
+
+void NativeTorrentExtension::on_state(const lt::torrent_status::state_t state)
+{
+    if (m_state == lt::torrent_status::downloading_metadata)
+        m_torrentHandle.set_flags(lt::torrent_flags::stop_when_ready);
+
+    m_state = state;
 }

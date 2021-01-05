@@ -29,7 +29,6 @@
 #include "transferlistsortmodel.h"
 
 #include <QDateTime>
-#include <QStringList>
 
 #include "base/bittorrent/infohash.h"
 #include "base/bittorrent/torrenthandle.h"
@@ -41,7 +40,7 @@
 TransferListSortModel::TransferListSortModel(QObject *parent)
     : QSortFilterProxyModel {parent}
 {
-    QMetaType::registerComparators<BitTorrent::TorrentState>();
+    setSortRole(TransferListModel::UnderlyingDataRole);
 }
 
 void TransferListSortModel::setStatusFilter(TorrentFilter::Type filter)
@@ -74,9 +73,9 @@ void TransferListSortModel::disableTagFilter()
         invalidateFilter();
 }
 
-void TransferListSortModel::setTrackerFilter(const QStringList &hashes)
+void TransferListSortModel::setTrackerFilter(const QSet<BitTorrent::InfoHash> &hashes)
 {
-    if (m_filter.setHashSet(List::toSet(hashes)))
+    if (m_filter.setHashSet(hashes))
         invalidateFilter();
 }
 
@@ -103,8 +102,8 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
     const auto hashLessThan = [this, &left, &right]() -> bool
     {
         const TransferListModel *model = qobject_cast<TransferListModel *>(sourceModel());
-        const QString hashL = model->torrentHandle(left)->hash();
-        const QString hashR = model->torrentHandle(right)->hash();
+        const BitTorrent::InfoHash hashL = model->torrentHandle(left)->hash();
+        const BitTorrent::InfoHash hashR = model->torrentHandle(right)->hash();
         return hashL < hashR;
     };
 
@@ -112,7 +111,8 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
     const QVariant leftValue = left.data(TransferListModel::UnderlyingDataRole);
     const QVariant rightValue = right.data(TransferListModel::UnderlyingDataRole);
 
-    switch (sortColumn) {
+    switch (sortColumn)
+    {
     case TransferListModel::TR_CATEGORY:
     case TransferListModel::TR_TAGS:
     case TransferListModel::TR_NAME:
@@ -121,58 +121,68 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
         return (Utils::String::naturalCompare(leftValue.toString(), rightValue.toString(), Qt::CaseInsensitive) < 0);
 
     case TransferListModel::TR_STATUS:
-        // QSortFilterProxyModel::lessThan() uses the < operator only for specific QVariant types
-        // so our custom type is outside that list.
-        // In this case QSortFilterProxyModel::lessThan() converts other types to QString and
-        // sorts them.
-        // Thus we can't use the code in the default label.
-        if (leftValue != rightValue)
-            return leftValue < rightValue;
-        return invokeLessThanForColumn(TransferListModel::TR_QUEUE_POSITION);
+        {
+            const auto stateL = leftValue.value<BitTorrent::TorrentState>();
+            const auto stateR = rightValue.value<BitTorrent::TorrentState>();
+
+            if (stateL != stateR)
+                return stateL < stateR;
+            return invokeLessThanForColumn(TransferListModel::TR_QUEUE_POSITION);
+        }
 
     case TransferListModel::TR_ADD_DATE:
     case TransferListModel::TR_SEED_DATE:
-    case TransferListModel::TR_SEEN_COMPLETE_DATE: {
-            const QDateTime dateL = leftValue.toDateTime();
-            const QDateTime dateR = rightValue.toDateTime();
+    case TransferListModel::TR_SEEN_COMPLETE_DATE:
+        {
+            const auto dateL = leftValue.toDateTime();
+            const auto dateR = rightValue.toDateTime();
 
-            if (dateL.isValid() && dateR.isValid()) {
+            if (dateL.isValid() && dateR.isValid())
+            {
                 if (dateL != dateR)
                     return dateL < dateR;
             }
-            else if (dateL.isValid()) {
+            else if (dateL.isValid())
+            {
                 return true;
             }
-            else if (dateR.isValid()) {
+            else if (dateR.isValid())
+            {
                 return false;
             }
 
             return hashLessThan();
         }
 
-    case TransferListModel::TR_QUEUE_POSITION: {
-            // QVariant has comparators for all basic types
-            if ((leftValue > 0) || (rightValue > 0)) {
-                if ((leftValue > 0) && (rightValue > 0))
-                    return leftValue < rightValue;
+    case TransferListModel::TR_QUEUE_POSITION:
+        {
+            const auto positionL = leftValue.toInt();
+            const auto positionR = rightValue.toInt();
 
-                return leftValue != 0;
+            if ((positionL > 0) || (positionR > 0))
+            {
+                if ((positionL > 0) && (positionR > 0))
+                    return positionL < positionR;
+                return positionL != 0;
             }
 
             // Sort according to TR_SEED_DATE
-            const QDateTime dateL = left.sibling(left.row(), TransferListModel::TR_SEED_DATE)
+            const auto dateL = left.sibling(left.row(), TransferListModel::TR_SEED_DATE)
                     .data(TransferListModel::UnderlyingDataRole).toDateTime();
-            const QDateTime dateR = right.sibling(right.row(), TransferListModel::TR_SEED_DATE)
+            const auto dateR = right.sibling(right.row(), TransferListModel::TR_SEED_DATE)
                     .data(TransferListModel::UnderlyingDataRole).toDateTime();
 
-            if (dateL.isValid() && dateR.isValid()) {
+            if (dateL.isValid() && dateR.isValid())
+            {
                 if (dateL != dateR)
                     return dateL < dateR;
             }
-            else if (dateL.isValid()) {
+            else if (dateL.isValid())
+            {
                 return false;
             }
-            else if (dateR.isValid()) {
+            else if (dateR.isValid())
+            {
                 return true;
             }
 
@@ -180,21 +190,24 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
         }
 
     case TransferListModel::TR_SEEDS:
-    case TransferListModel::TR_PEERS: {
-            // QVariant has comparators for all basic types
-            // Active peers/seeds take precedence over total peers/seeds.
-            if (leftValue != rightValue)
-                return (leftValue < rightValue);
+    case TransferListModel::TR_PEERS:
+        {
+            // Active peers/seeds take precedence over total peers/seeds
+            const auto activeL = leftValue.toInt();
+            const auto activeR = rightValue.toInt();
+            if (activeL != activeR)
+                return activeL < activeR;
 
-            const QVariant leftValueTotal = left.data(TransferListModel::AdditionalUnderlyingDataRole);
-            const QVariant rightValueTotal = right.data(TransferListModel::AdditionalUnderlyingDataRole);
-            if (leftValueTotal != rightValueTotal)
-                return (leftValueTotal < rightValueTotal);
+            const auto totalL = left.data(TransferListModel::AdditionalUnderlyingDataRole).toInt();
+            const auto totalR = right.data(TransferListModel::AdditionalUnderlyingDataRole).toInt();
+            if (totalL != totalR)
+                return totalL < totalR;
 
             return invokeLessThanForColumn(TransferListModel::TR_QUEUE_POSITION);
         }
 
-    case TransferListModel::TR_ETA: {
+    case TransferListModel::TR_ETA:
+        {
             // Sorting rules prioritized.
             // 1. Active torrents at the top
             // 2. Seeding torrents at the bottom
@@ -209,13 +222,14 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
             if (isActiveL != isActiveR)
                 return isActiveL;
 
-            const int queuePosL = left.sibling(left.row(), TransferListModel::TR_QUEUE_POSITION)
+            const auto queuePosL = left.sibling(left.row(), TransferListModel::TR_QUEUE_POSITION)
                     .data(TransferListModel::UnderlyingDataRole).toInt();
-            const int queuePosR = right.sibling(right.row(), TransferListModel::TR_QUEUE_POSITION)
+            const auto queuePosR = right.sibling(right.row(), TransferListModel::TR_QUEUE_POSITION)
                     .data(TransferListModel::UnderlyingDataRole).toInt();
             const bool isSeedingL = (queuePosL < 0);
             const bool isSeedingR = (queuePosR < 0);
-            if (isSeedingL != isSeedingR) {
+            if (isSeedingL != isSeedingR)
+            {
                 const bool isAscendingOrder = (sortOrder() == Qt::AscendingOrder);
                 if (isSeedingL)
                     return !isAscendingOrder;
@@ -223,11 +237,12 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
                 return isAscendingOrder;
             }
 
-            const qlonglong etaL = leftValue.toLongLong();
-            const qlonglong etaR = rightValue.toLongLong();
+            const auto etaL = leftValue.toLongLong();
+            const auto etaR = rightValue.toLongLong();
             const bool isInvalidL = ((etaL < 0) || (etaL >= MAX_ETA));
             const bool isInvalidR = ((etaR < 0) || (etaR >= MAX_ETA));
-            if (isInvalidL && isInvalidR) {
+            if (isInvalidL && isInvalidR)
+            {
                 if (isSeedingL)  // Both seeding
                     return invokeLessThanForColumn(TransferListModel::TR_SEED_DATE);
 
@@ -241,12 +256,24 @@ bool TransferListSortModel::lessThan_impl(const QModelIndex &left, const QModelI
         }
 
     case TransferListModel::TR_LAST_ACTIVITY:
-    case TransferListModel::TR_RATIO_LIMIT:
-        // QVariant has comparators for all basic types
-        if (leftValue < 0) return false;
-        if (rightValue < 0) return true;
+        {
+            const auto lastActivityL = leftValue.toLongLong();
+            const auto lastActivityR = rightValue.toLongLong();
 
-        return (leftValue < rightValue);
+            if (lastActivityL < 0) return false;
+            if (lastActivityR < 0) return true;
+            return lastActivityL < lastActivityR;
+        }
+
+    case TransferListModel::TR_RATIO_LIMIT:
+        {
+            const auto ratioL = leftValue.toReal();
+            const auto ratioR = rightValue.toReal();
+
+            if (ratioL < 0) return false;
+            if (ratioR < 0) return true;
+            return ratioL < ratioR;
+        }
     }
 
     return (leftValue != rightValue)

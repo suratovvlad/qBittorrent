@@ -36,9 +36,12 @@
 #include "uithememanager.h"
 #include "utils.h"
 
+#define SETTINGS_KEY(name) "AboutDialog/" name
+
 AboutDialog::AboutDialog(QWidget *parent)
     : QDialog(parent)
     , m_ui(new Ui::AboutDialog)
+    , m_storeDialogSize(SETTINGS_KEY("Size"))
 {
     m_ui->setupUi(this);
     setAttribute(Qt::WA_DeleteOnClose);
@@ -70,21 +73,24 @@ AboutDialog::AboutDialog(QWidget *parent)
 
     // Thanks
     QFile thanksfile(":/thanks.html");
-    if (thanksfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (thanksfile.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
         m_ui->textBrowserThanks->setHtml(QString::fromUtf8(thanksfile.readAll().constData()));
         thanksfile.close();
     }
 
     // Translation
     QFile translatorsfile(":/translators.html");
-    if (translatorsfile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (translatorsfile.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
         m_ui->textBrowserTranslation->setHtml(QString::fromUtf8(translatorsfile.readAll().constData()));
         translatorsfile.close();
     }
 
     // License
     QFile licensefile(":/gpl.html");
-    if (licensefile.open(QIODevice::ReadOnly | QIODevice::Text)) {
+    if (licensefile.open(QIODevice::ReadOnly | QIODevice::Text))
+    {
         m_ui->textBrowserLicense->setHtml(QString::fromUtf8(licensefile.readAll().constData()));
         licensefile.close();
     }
@@ -104,11 +110,12 @@ AboutDialog::AboutDialog(QWidget *parent)
                                      "The database is licensed under the Creative Commons Attribution 4.0 International License"));
     m_ui->labelDBIP->setText(DBIPText);
 
-    Utils::Gui::resize(this);
+    Utils::Gui::resize(this, m_storeDialogSize);
     show();
 }
 
 AboutDialog::~AboutDialog()
 {
+    m_storeDialogSize = size();
     delete m_ui;
 }

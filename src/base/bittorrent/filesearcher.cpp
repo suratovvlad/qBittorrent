@@ -1,6 +1,6 @@
 /*
  * Bittorrent Client using Qt and libtorrent.
- * Copyright (C) 2015  Vladimir Golovnev <glassez@yandex.ru>
+ * Copyright (C) 2020  Vladimir Golovnev <glassez@yandex.ru>
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -26,8 +26,44 @@
  * exception statement from your version.
  */
 
-#include "tristatebool.h"
+#include "filesearcher.h"
 
-const TriStateBool TriStateBool::Undefined(-1);
-const TriStateBool TriStateBool::False(0);
-const TriStateBool TriStateBool::True(1);
+#include <QDir>
+
+#include "base/bittorrent/common.h"
+#include "base/bittorrent/infohash.h"
+
+void FileSearcher::search(const BitTorrent::InfoHash &id, const QStringList &originalFileNames
+                          , const QString &completeSavePath, const QString &incompleteSavePath)
+{
+    const auto findInDir = [](const QString &dirPath, QStringList &fileNames) -> bool
+    {
+        const QDir dir {dirPath};
+        bool found = false;
+        for (QString &fileName : fileNames)
+        {
+            if (dir.exists(fileName))
+            {
+                found = true;
+            }
+            else if (dir.exists(fileName + QB_EXT))
+            {
+                found = true;
+                fileName += QB_EXT;
+            }
+        }
+
+        return found;
+    };
+
+    QString savePath = completeSavePath;
+    QStringList adjustedFileNames = originalFileNames;
+    const bool found = findInDir(savePath, adjustedFileNames);
+    if (!found && !incompleteSavePath.isEmpty())
+    {
+        savePath = incompleteSavePath;
+        findInDir(savePath, adjustedFileNames);
+    }
+
+    emit searchFinished(id, savePath, adjustedFileNames);
+}

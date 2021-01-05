@@ -31,6 +31,7 @@
 
 #include <QProcess>
 #include <QTimer>
+#include <QVector>
 
 #include "base/global.h"
 #include "base/utils/foreignapps.h"
@@ -64,7 +65,8 @@ SearchHandler::SearchHandler(const QString &pattern, const QString &category, co
     // Load environment variables (proxy)
     m_searchProcess->setEnvironment(QProcess::systemEnvironment());
 
-    const QStringList params {
+    const QStringList params
+    {
         Utils::Fs::toNativePath(m_manager->engineLocation() + "/nova2.py"),
         m_usedPlugins.join(','),
         m_category
@@ -137,13 +139,15 @@ void SearchHandler::readSearchOutput()
     QVector<SearchResult> searchResultList;
     searchResultList.reserve(lines.size());
 
-    for (const QByteArray &line : asConst(lines)) {
+    for (const QByteArray &line : asConst(lines))
+    {
         SearchResult searchResult;
         if (parseSearchResult(QString::fromUtf8(line), searchResult))
             searchResultList << searchResult;
     }
 
-    if (!searchResultList.isEmpty()) {
+    if (!searchResultList.isEmpty())
+    {
         for (const SearchResult &result : searchResultList)
             m_results.append(result);
         emit newSearchResults(searchResultList);

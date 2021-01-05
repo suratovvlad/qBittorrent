@@ -32,6 +32,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QVector>
 
 #include "base/rss/rss_article.h"
 #include "base/rss/rss_autodownloader.h"
@@ -88,7 +89,7 @@ void RSSController::moveItemAction()
 
 void RSSController::itemsAction()
 {
-    const bool withData {parseBool(params()["withData"], false)};
+    const bool withData {parseBool(params()["withData"]).value_or(false)};
 
     const auto jsonVal = RSS::Session::instance()->rootFolder()->toJsonValue(withData);
     setResult(jsonVal.toObject());
@@ -104,15 +105,18 @@ void RSSController::markAsReadAction()
     RSS::Item *item = RSS::Session::instance()->itemByPath(itemPath);
     if (!item) return;
 
-    if (!articleId.isNull()) {
+    if (!articleId.isNull())
+    {
         RSS::Feed *feed = qobject_cast<RSS::Feed *>(item);
-        if (feed) {
+        if (feed)
+        {
             RSS::Article *article = feed->articleByGUID(articleId);
             if (article)
                 article->markAsRead();
         }
     }
-    else {
+    else
+    {
         item->markAsRead();
     }
 }
@@ -174,12 +178,14 @@ void RSSController::matchingArticlesAction()
     const RSS::AutoDownloadRule rule = RSS::AutoDownloader::instance()->ruleByName(ruleName);
 
     QJsonObject jsonObj;
-    for (const QString &feedURL : rule.feedURLs()) {
+    for (const QString &feedURL : rule.feedURLs())
+    {
         const RSS::Feed *feed = RSS::Session::instance()->feedByURL(feedURL);
         if (!feed) continue; // feed doesn't exist
 
         QJsonArray matchingArticles;
-        for (const RSS::Article *article : feed->articles()) {
+        for (const RSS::Article *article : feed->articles())
+        {
             if (rule.matches(article->data()))
                 matchingArticles << article->title();
         }

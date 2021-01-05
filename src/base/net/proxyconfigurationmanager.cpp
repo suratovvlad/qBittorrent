@@ -64,15 +64,15 @@ ProxyConfigurationManager *ProxyConfigurationManager::m_instance = nullptr;
 ProxyConfigurationManager::ProxyConfigurationManager(QObject *parent)
     : QObject(parent)
 {
-    m_isProxyOnlyForTorrents = settings()->loadValue(KEY_ONLY_FOR_TORRENTS, false).toBool();
+    m_isProxyOnlyForTorrents = settings()->loadValue(KEY_ONLY_FOR_TORRENTS, false);
     m_config.type = static_cast<ProxyType>(
-                settings()->loadValue(KEY_TYPE, static_cast<int>(ProxyType::None)).toInt());
+                settings()->loadValue(KEY_TYPE, static_cast<int>(ProxyType::None)));
     if ((m_config.type < ProxyType::None) || (m_config.type > ProxyType::SOCKS4))
         m_config.type = ProxyType::None;
-    m_config.ip = settings()->loadValue(KEY_IP, "0.0.0.0").toString();
-    m_config.port = static_cast<ushort>(settings()->loadValue(KEY_PORT, 8080).toUInt());
-    m_config.username = settings()->loadValue(KEY_USERNAME).toString();
-    m_config.password = settings()->loadValue(KEY_PASSWORD).toString();
+    m_config.ip = settings()->loadValue<QString>(KEY_IP, "0.0.0.0");
+    m_config.port = settings()->loadValue<ushort>(KEY_PORT, 8080);
+    m_config.username = settings()->loadValue<QString>(KEY_USERNAME);
+    m_config.password = settings()->loadValue<QString>(KEY_PASSWORD);
     configureProxy();
 }
 
@@ -100,7 +100,8 @@ ProxyConfiguration ProxyConfigurationManager::proxyConfiguration() const
 
 void ProxyConfigurationManager::setProxyConfiguration(const ProxyConfiguration &config)
 {
-    if (config != m_config) {
+    if (config != m_config)
+    {
         m_config = config;
         settings()->storeValue(KEY_TYPE, static_cast<int>(config.type));
         settings()->storeValue(KEY_IP, config.ip);
@@ -120,7 +121,8 @@ bool ProxyConfigurationManager::isProxyOnlyForTorrents() const
 
 void ProxyConfigurationManager::setProxyOnlyForTorrents(bool onlyForTorrents)
 {
-    if (m_isProxyOnlyForTorrents != onlyForTorrents) {
+    if (m_isProxyOnlyForTorrents != onlyForTorrents)
+    {
         settings()->storeValue(KEY_ONLY_FOR_TORRENTS, onlyForTorrents);
         m_isProxyOnlyForTorrents = onlyForTorrents;
     }
@@ -136,8 +138,10 @@ void ProxyConfigurationManager::configureProxy()
 {
     // Define environment variables for urllib in search engine plugins
     QString proxyStrHTTP, proxyStrSOCK;
-    if (!m_isProxyOnlyForTorrents) {
-        switch (m_config.type) {
+    if (!m_isProxyOnlyForTorrents)
+    {
+        switch (m_config.type)
+        {
         case ProxyType::HTTP_PW:
             proxyStrHTTP = QString::fromLatin1("http://%1:%2@%3:%4").arg(m_config.username
                 , m_config.password, m_config.ip, QString::number(m_config.port));

@@ -31,6 +31,7 @@
 #include <libtorrent/bencode.hpp>
 #include <libtorrent/create_torrent.hpp>
 #include <libtorrent/error_code.hpp>
+#include <libtorrent/version.hpp>
 
 #include <QByteArray>
 #include <QDateTime>
@@ -39,6 +40,7 @@
 #include <QString>
 #include <QStringList>
 #include <QUrl>
+#include <QVector>
 
 #include "base/exceptions.h"
 #include "base/global.h"
@@ -49,6 +51,29 @@
 #include "trackerentry.h"
 
 using namespace BitTorrent;
+
+namespace
+{
+    QString getRootFolder(const QStringList &filePaths)
+    {
+        QString rootFolder;
+        for (const QString &filePath : filePaths)
+        {
+            if (QDir::isAbsolutePath(filePath)) continue;
+
+            const auto filePathElements = filePath.splitRef('/');
+            // if at least one file has no root folder, no common root folder exists
+            if (filePathElements.count() <= 1) return {};
+
+            if (rootFolder.isEmpty())
+                rootFolder = filePathElements.at(0).toString();
+            else if (rootFolder != filePathElements.at(0))
+                return {};
+        }
+
+        return rootFolder;
+    }
+}
 
 TorrentInfo::TorrentInfo(std::shared_ptr<const lt::torrent_info> nativeInfo)
 {
@@ -76,14 +101,16 @@ TorrentInfo TorrentInfo::load(const QByteArray &data, QString *error) noexcept
     lt::error_code ec;
     const lt::bdecode_node node = lt::bdecode(data, ec
         , nullptr, depthLimit, tokenLimit);
-    if (ec) {
+    if (ec)
+    {
         if (error)
             *error = QString::fromStdString(ec.message());
         return TorrentInfo();
     }
 
     TorrentInfo info {std::shared_ptr<lt::torrent_info>(new lt::torrent_info(node, ec))};
-    if (ec) {
+    if (ec)
+    {
         if (error)
             *error = QString::fromStdString(ec.message());
         return TorrentInfo();
@@ -98,28 +125,33 @@ TorrentInfo TorrentInfo::loadFromFile(const QString &path, QString *error) noexc
         error->clear();
 
     QFile file {path};
-    if (!file.open(QIODevice::ReadOnly)) {
+    if (!file.open(QIODevice::ReadOnly))
+    {
         if (error)
             *error = file.errorString();
         return TorrentInfo();
     }
 
-    if (file.size() > MAX_TORRENT_SIZE) {
+    if (file.size() > MAX_TORRENT_SIZE)
+    {
         if (error)
             *error = tr("File size exceeds max limit %1").arg(Utils::Misc::friendlyUnit(MAX_TORRENT_SIZE));
         return TorrentInfo();
     }
 
     QByteArray data;
-    try {
+    try
+    {
         data = file.readAll();
     }
-    catch (const std::bad_alloc &e) {
+    catch (const std::bad_alloc &e)
+    {
         if (error)
             *error = tr("Torrent file read error: %1").arg(e.what());
         return TorrentInfo();
     }
-    if (data.size() != file.size()) {
+    if (data.size() != file.size())
+    {
         if (error)
             *error = tr("Torrent file read error: size mismatch");
         return TorrentInfo();
@@ -161,7 +193,7 @@ InfoHash TorrentInfo::hash() const
 QString TorrentInfo::name() const
 {
     if (!isValid()) return {};
-    return QString::fromStdString(m_nativeInfo->name());
+    return QString::fromStdString(m_nativeInfo->orig_files().name());
 }
 
 QDateTime TorrentInfo::creationDate() const
@@ -283,7 +315,8 @@ QVector<QUrl> TorrentInfo::urlSeeds() const
     QVector<QUrl> urlSeeds;
     urlSeeds.reserve(nativeWebSeeds.size());
 
-    for (const lt::web_seed_entry &webSeed : nativeWebSeeds) {
+    for (const lt::web_seed_entry &webSeed : nativeWebSeeds)
+    {
         if (webSeed.type == lt::web_seed_entry::url_seed)
             urlSeeds.append(QUrl(webSeed.url.c_str()));
     }
@@ -294,7 +327,12 @@ QVector<QUrl> TorrentInfo::urlSeeds() const
 QByteArray TorrentInfo::metadata() const
 {
     if (!isValid()) return {};
+#if (LIBTORRENT_VERSION_NUM >= 20000)
+    const lt::span<const char> infoSection {m_nativeInfo->info_section()};
+    return {infoSection.data(), static_cast<int>(infoSection.size())};
+#else
     return {m_nativeInfo->metadata().get(), m_nativeInfo->metadata_size()};
+#endif
 }
 
 QStringList TorrentInfo::filesForPiece(const int pieceIndex) const
@@ -347,7 +385,8 @@ TorrentInfo::PieceRange TorrentInfo::filePieces(const QString &file) const
         return {};
 
     const int index = fileIndex(file);
-    if (index == -1) {
+    if (index == -1)
+    {
         qDebug() << "Filename" << file << "was not found in torrent" << name();
         return {};
     }
@@ -359,7 +398,8 @@ TorrentInfo::PieceRange TorrentInfo::filePieces(const int fileIndex) const
     if (!isValid())
         return {};
 
-    if ((fileIndex < 0) || (fileIndex >= filesCount())) {
+    if ((fileIndex < 0) || (fileIndex >= filesCount()))
+    {
         qDebug() << "File index (" << fileIndex << ") is out of range for torrent" << name();
         return {};
     }
@@ -395,22 +435,7 @@ int TorrentInfo::fileIndex(const QString &fileName) const
 
 QString TorrentInfo::rootFolder() const
 {
-    QString rootFolder;
-    for (int i = 0; i < filesCount(); ++i) {
-        const QString filePath = this->filePath(i);
-        if (QDir::isAbsolutePath(filePath)) continue;
-
-        const auto filePathElements = filePath.splitRef('/');
-        // if at least one file has no root folder, no common root folder exists
-        if (filePathElements.count() <= 1) return "";
-
-        if (rootFolder.isEmpty())
-            rootFolder = filePathElements.at(0).toString();
-        else if (rootFolder != filePathElements.at(0))
-            return "";
-    }
-
-    return rootFolder;
+    return getRootFolder(filePaths());
 }
 
 bool TorrentInfo::hasRootFolder() const
@@ -418,16 +443,33 @@ bool TorrentInfo::hasRootFolder() const
     return !rootFolder().isEmpty();
 }
 
+void TorrentInfo::setContentLayout(const TorrentContentLayout layout)
+{
+    switch (layout)
+    {
+    case TorrentContentLayout::Original:
+        setContentLayout(defaultContentLayout());
+        break;
+    case TorrentContentLayout::Subfolder:
+        if (rootFolder().isEmpty())
+            addRootFolder();
+        break;
+    case TorrentContentLayout::NoSubfolder:
+        if (!rootFolder().isEmpty())
+            stripRootFolder();
+        break;
+    }
+}
+
 void TorrentInfo::stripRootFolder()
 {
-    if (!hasRootFolder()) return;
-
     lt::file_storage files = m_nativeInfo->files();
 
     // Solution for case of renamed root folder
     const QString path = filePath(0);
     const std::string newName = path.left(path.indexOf('/')).toStdString();
-    if (files.name() != newName) {
+    if (files.name() != newName)
+    {
         files.set_name(newName);
         for (int i = 0; i < files.num_files(); ++i)
             files.rename_file(lt::file_index_t {i}, files.file_path(lt::file_index_t {i}));
@@ -435,6 +477,32 @@ void TorrentInfo::stripRootFolder()
 
     files.set_name("");
     m_nativeInfo->remap_files(files);
+}
+
+void TorrentInfo::addRootFolder()
+{
+    const QString rootFolder = name();
+    Q_ASSERT(!rootFolder.isEmpty());
+
+    const std::string rootPrefix = Utils::Fs::toNativePath(rootFolder + QLatin1Char {'/'}).toStdString();
+    lt::file_storage files = m_nativeInfo->files();
+    files.set_name(rootFolder.toStdString());
+    for (int i = 0; i < files.num_files(); ++i)
+        files.rename_file(lt::file_index_t {i}, rootPrefix + files.file_path(lt::file_index_t {i}));
+    m_nativeInfo->remap_files(files);
+}
+
+TorrentContentLayout TorrentInfo::defaultContentLayout() const
+{
+    QStringList origFilePaths;
+    origFilePaths.reserve(filesCount());
+    for (int i = 0; i < filesCount(); ++i)
+        origFilePaths << origFilePath(i);
+
+    const QString origRootFolder = getRootFolder(origFilePaths);
+    return (origRootFolder.isEmpty()
+            ? TorrentContentLayout::NoSubfolder
+            : TorrentContentLayout::Subfolder);
 }
 
 std::shared_ptr<lt::torrent_info> TorrentInfo::nativeInfo() const

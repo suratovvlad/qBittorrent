@@ -26,8 +26,7 @@
  * exception statement from your version.
  */
 
-#ifndef TORRENTCONTENTMODELFOLDER_H
-#define TORRENTCONTENTMODELFOLDER_H
+#pragma once
 
 #include "torrentcontentmodelitem.h"
 
@@ -43,7 +42,7 @@ public:
     TorrentContentModelFolder(const QString &name, TorrentContentModelFolder *parent);
 
     // Invisible root item constructor
-    explicit TorrentContentModelFolder(const QVector<QVariant> &data);
+    explicit TorrentContentModelFolder(const QVector<QString> &data);
 
     ~TorrentContentModelFolder() override;
 
@@ -66,5 +65,3 @@ public:
 private:
     QVector<TorrentContentModelItem*> m_childItems;
 };
-
-#endif // TORRENTCONTENTMODELFOLDER_H

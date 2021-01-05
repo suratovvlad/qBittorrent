@@ -26,8 +26,7 @@
  * exception statement from your version.
  */
 
-#ifndef QBITTORRENT_UTILS_VERSION_H
-#define QBITTORRENT_UTILS_VERSION_H
+#pragma once
 
 #include <array>
 #include <stdexcept>
@@ -133,28 +132,26 @@ namespace Utils
             return (*this != ThisType {});
         }
 
-        constexpr bool operator==(const ThisType &other) const
+        // TODO: remove manually defined operators and use compiler generated `operator<=>()` in C++20
+        friend bool operator==(const ThisType &left, const ThisType &right)
         {
-            return (m_components == other.m_components);
+            return (left.m_components == right.m_components);
         }
 
-        constexpr bool operator<(const ThisType &other) const
+        friend bool operator<(const ThisType &left, const ThisType &right)
         {
-            return (m_components < other.m_components);
-        }
-
-        constexpr bool operator>(const ThisType &other) const
-        {
-            return (m_components > other.m_components);
+            return (left.m_components < right.m_components);
         }
 
         template <typename StringClassWithSplitMethod>
         static Version tryParse(const StringClassWithSplitMethod &s, const Version &defaultVersion)
         {
-            try {
+            try
+            {
                 return Version(s);
             }
-            catch (const std::runtime_error &er) {
+            catch (const std::runtime_error &er)
+            {
                 qDebug() << "Error parsing version:" << er.what();
                 return defaultVersion;
             }
@@ -172,7 +169,8 @@ namespace Utils
 
             bool ok = false;
             ComponentsArray res {{}};
-            for (std::size_t i = 0; i < static_cast<std::size_t>(versionParts.size()); ++i) {
+            for (std::size_t i = 0; i < static_cast<std::size_t>(versionParts.size()); ++i)
+            {
                 res[i] = static_cast<T>(versionParts[static_cast<typename StringsList::size_type>(i)].toInt(&ok));
                 if (!ok)
                     throw std::runtime_error("Can not parse version component");
@@ -196,6 +194,12 @@ namespace Utils
     }
 
     template <typename T, std::size_t N, std::size_t Mandatory>
+    constexpr bool operator>(const Version<T, N, Mandatory> &left, const Version<T, N, Mandatory> &right)
+    {
+        return (right < left);
+    }
+
+    template <typename T, std::size_t N, std::size_t Mandatory>
     constexpr bool operator<=(const Version<T, N, Mandatory> &left, const Version<T, N, Mandatory> &right)
     {
         return !(left > right);
@@ -207,5 +211,3 @@ namespace Utils
         return !(left < right);
     }
 }
-
-#endif // QBITTORRENT_UTILS_VERSION_H

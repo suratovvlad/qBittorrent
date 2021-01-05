@@ -26,13 +26,13 @@
  * exception statement from your version.
  */
 
-#ifndef TORRENTCONTENTTREEVIEW_H
-#define TORRENTCONTENTTREEVIEW_H
+#pragma once
 
 #include <QTreeView>
 
 namespace BitTorrent
 {
+    class AbstractFileStorage;
     class TorrentHandle;
     class TorrentInfo;
 }
@@ -40,16 +40,14 @@ namespace BitTorrent
 class TorrentContentTreeView final : public QTreeView
 {
     Q_OBJECT
+    Q_DISABLE_COPY(TorrentContentTreeView)
 
 public:
     explicit TorrentContentTreeView(QWidget *parent = nullptr);
     void keyPressEvent(QKeyEvent *event) override;
 
-    void renameSelectedFile(BitTorrent::TorrentHandle *torrent);
-    void renameSelectedFile(BitTorrent::TorrentInfo &torrent);
+    void renameSelectedFile(BitTorrent::AbstractFileStorage &fileStorage);
 
 private:
     QModelIndex currentNameCell();
 };
-
-#endif // TORRENTCONTENTTREEVIEW_H

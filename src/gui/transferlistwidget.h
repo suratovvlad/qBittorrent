@@ -26,12 +26,11 @@
  * exception statement from your version.
  */
 
-#ifndef TRANSFERLISTWIDGET_H
-#define TRANSFERLISTWIDGET_H
+#pragma once
 
 #include <functional>
+#include <QtContainerFwd>
 #include <QTreeView>
-#include <QVector>
 
 class MainWindow;
 class TransferListDelegate;
@@ -40,6 +39,7 @@ class TransferListSortModel;
 
 namespace BitTorrent
 {
+    class InfoHash;
     class TorrentHandle;
 }
 
@@ -79,9 +79,7 @@ public slots:
     void openSelectedTorrentsFolder() const;
     void recheckSelectedTorrents();
     void reannounceSelectedTorrents();
-    void setDlLimitSelectedTorrents();
-    void setUpLimitSelectedTorrents();
-    void setMaxRatioSelectedTorrents();
+    void setTorrentOptions();
     void previewSelectedTorrents();
     void hideQueuePosColumn(bool hide);
     void displayDLHoSMenu(const QPoint&);
@@ -90,7 +88,7 @@ public slots:
     void applyCategoryFilter(const QString &category);
     void applyTagFilter(const QString &tag);
     void applyTrackerFilterAll();
-    void applyTrackerFilter(const QStringList &hashes);
+    void applyTrackerFilter(const QSet<BitTorrent::InfoHash> &hashes);
     void previewFile(const QString &filePath);
     void renameSelectedTorrent();
 
@@ -128,5 +126,3 @@ private:
     TransferListSortModel *m_sortFilterModel;
     MainWindow *m_mainWindow;
 };
-
-#endif // TRANSFERLISTWIDGET_H
